@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import shutil
 import tempfile
@@ -21,7 +22,9 @@ class BuildConfiguration:
         app_specific_url_scheme,
         premium_iap_product_id,
         enable_siri,
-        enable_icloud
+        enable_icloud,
+        archive_url='',
+        archive_token=''
     ):
         self.bundle_id = bundle_id
         self.api_id = api_id
@@ -35,6 +38,8 @@ class BuildConfiguration:
         self.premium_iap_product_id = premium_iap_product_id
         self.enable_siri = enable_siri
         self.enable_icloud = enable_icloud
+        self.archive_url = archive_url
+        self.archive_token = archive_token
 
     def write_to_variables_file(self, bazel_path, use_xcode_managed_codesigning, aps_environment, path):
         string = ''
@@ -54,11 +59,21 @@ class BuildConfiguration:
         string += 'telegram_enable_siri = {}\n'.format(self.enable_siri)
         string += 'telegram_enable_icloud = {}\n'.format(self.enable_icloud)
         string += 'telegram_enable_watch = True\n'
+        # Custom archive layer: pass the archive API endpoint to the app
+        # via bazel defines. Values are put through bzl_string so quotes and
+        # backslashes in URLs or tokens cannot break the generated file.
+        string += 'telegram_archive_url = {}\n'.format(bzl_string(self.archive_url))
+        string += 'telegram_archive_token = {}\n'.format(bzl_string(self.archive_token))
 
         if os.path.exists(path):
             os.remove(path)
         with open(path, 'w+') as file:
             file.write(string)
+
+
+def bzl_string(value):
+    """Serialize a python string as a starlark string literal."""
+    return '"{}"'.format(str(value).replace('\\', '\\\\').replace('"', '\\"'))
 
 
 def build_configuration_from_json(path):
@@ -96,7 +111,9 @@ def build_configuration_from_json(path):
             app_specific_url_scheme=configuration_dict['app_specific_url_scheme'],
             premium_iap_product_id=configuration_dict['premium_iap_product_id'],
             enable_siri=configuration_dict['enable_siri'],
-            enable_icloud=configuration_dict['enable_icloud']
+            enable_icloud=configuration_dict['enable_icloud'],
+            archive_url=configuration_dict.get('archive_url', ''),
+            archive_token=configuration_dict.get('archive_token', '')
         )
 
 

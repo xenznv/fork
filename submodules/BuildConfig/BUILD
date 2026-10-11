@@ -9,6 +9,8 @@ load(
     "telegram_app_specific_url_scheme",
     "telegram_enable_icloud",
     "telegram_enable_siri",
+    "telegram_archive_url",
+    "telegram_archive_token",
 )
 
 objc_library(
@@ -29,6 +31,8 @@ objc_library(
         "-DAPP_SPECIFIC_URL_SCHEME=\\\"{}\\\"".format(telegram_app_specific_url_scheme),
         "-DAPP_CONFIG_IS_ICLOUD_ENABLED={}".format("true" if telegram_enable_icloud else "false"),
         "-DAPP_CONFIG_IS_SIRI_ENABLED={}".format("true" if telegram_enable_siri else "false"),
+        "-DCUSTOM_ARCHIVE_URL=\\\"{}\\\"".format(telegram_archive_url),
+        "-DCUSTOM_ARCHIVE_TOKEN=\\\"{}\\\"".format(telegram_archive_token),
     ],
     hdrs = glob([
         "PublicHeaders/**/*.h",
