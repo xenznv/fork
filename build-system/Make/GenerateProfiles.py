@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import shutil
 import tempfile
 import plistlib
@@ -9,6 +8,23 @@ import subprocess
 import base64
 
 from BuildEnvironment import run_executable_with_output, check_run_system
+
+
+def _openssl_binary():
+    # The fake-codesigning p12 is RC2-encrypted, which needs OpenSSL 3 with
+    # the legacy algorithm set (invoked with -legacy below). macOS ships a
+    # LibreSSL 'openssl' that cannot parse it, so prefer a Homebrew OpenSSL 3
+    # when one is installed. The CI workflow sets OPENSSL_BIN explicitly.
+    env_path = os.environ.get('OPENSSL_BIN')
+    if env_path:
+        return env_path
+    for candidate in (
+        '/opt/homebrew/opt/openssl@3/bin/openssl',
+        '/usr/local/opt/openssl@3/bin/openssl',
+    ):
+        if os.access(candidate, os.X_OK):
+            return candidate
+    return 'openssl'
 
 
 def setup_temp_keychain(p12_path, p12_password=''):
@@ -57,14 +73,15 @@ def cleanup_temp_keychain(keychain_name):
 
 def get_signing_identity_from_p12(p12_path, p12_password=''):
     """Extract the common name (signing identity) from the p12 certificate."""
+    openssl_bin = _openssl_binary()
     proc = subprocess.Popen(
-        ['openssl', 'pkcs12', '-in', p12_path, '-passin', 'pass:' + p12_password, '-nokeys', '-legacy'],
+        [openssl_bin, 'pkcs12', '-in', p12_path, '-passin', 'pass:' + p12_password, '-nokeys', '-legacy'],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     cert_pem, _ = proc.communicate()
 
     proc2 = subprocess.Popen(
-        ['openssl', 'x509', '-noout', '-subject', '-nameopt', 'oneline,-esc_msb'],
+        [openssl_bin, 'x509', '-noout', '-subject', '-nameopt', 'oneline,-esc_msb'],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     subject, _ = proc2.communicate(cert_pem)
@@ -81,15 +98,16 @@ def get_signing_identity_from_p12(p12_path, p12_password=''):
 def get_certificate_base64_from_p12(p12_path, p12_password=''):
     """Extract the certificate as base64 from p12 file."""
     # Extract certificate in PEM format
+    openssl_bin = _openssl_binary()
     proc = subprocess.Popen(
-        ['openssl', 'pkcs12', '-in', p12_path, '-passin', 'pass:' + p12_password, '-nokeys', '-legacy'],
+        [openssl_bin, 'pkcs12', '-in', p12_path, '-passin', 'pass:' + p12_password, '-nokeys', '-legacy'],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     cert_pem, _ = proc.communicate()
 
     # Convert to DER format
     proc2 = subprocess.Popen(
-        ['openssl', 'x509', '-outform', 'DER'],
+        [openssl_bin, 'x509', '-outform', 'DER'],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     cert_der, _ = proc2.communicate(cert_pem)
