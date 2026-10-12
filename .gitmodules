@@ -41,3 +41,6 @@ url=https://github.com/ali-fareed/tgcalls.git
 [submodule "submodules/tlottie/tlottie"]
 	path = submodules/tlottie/tlottie
 	url = https://github.com/dkaraush/tlottie.git
+[submodule "third-party/wallet-engine"]
+	path = third-party/wallet-engine/wallet-engine
+	url = https://github.com/i582/wallet-engine.git
