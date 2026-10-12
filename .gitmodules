@@ -38,3 +38,6 @@ url=https://github.com/ali-fareed/tgcalls.git
 [submodule "build-system/bazel-rules/sourcekit-bazel-bsp"]
 	path = build-system/bazel-rules/sourcekit-bazel-bsp
 	url = https://github.com/spotify/sourcekit-bazel-bsp.git
+[submodule "submodules/tlottie/tlottie"]
+	path = submodules/tlottie/tlottie
+	url = https://github.com/dkaraush/tlottie.git
