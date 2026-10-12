@@ -121,6 +121,12 @@ def process_provisioning_profile(source, destination, certificate_data, signing_
     with open(parsed_plist_file, 'w+') as file:
         file.write(parsed_plist)
 
+    # Example profiles ship with a stale ExpirationDate; rules_apple's plisttool
+    # refuses profiles in the past, so push it two years out before re-signing.
+    from datetime import datetime, timedelta
+    new_expiration = (datetime.utcnow() + timedelta(days=730)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    run_executable_with_output('plutil', arguments=['-replace', 'ExpirationDate', '-date', new_expiration, parsed_plist_file], check_result=False)
+
     # Remove all existing developer certificates
     while True:
         result = run_executable_with_output('plutil', arguments=['-remove', 'DeveloperCertificates.0', parsed_plist_file], check_result=False)
