@@ -127,6 +127,16 @@ def process_provisioning_profile(source, destination, certificate_data, signing_
     new_expiration = (datetime.utcnow() + timedelta(days=730)).strftime('%Y-%m-%dT%H:%M:%SZ')
     run_executable_with_output('plutil', arguments=['-replace', 'ExpirationDate', '-date', new_expiration, parsed_plist_file], check_result=False)
 
+    # The example profiles predate some entitlement fragments the app targets
+    # now emit; plisttool cross-checks entitlements against the profile and
+    # fails when a key is missing. Mirror the app's entitlements into the
+    # profile so the re-signed profile grants what the target requests.
+    for entitlement_key in ['com.apple.developer.applesignin', 'com.apple.developer.background-tasks.continued-processing.gpu']:
+        check = run_executable_with_output('plutil', arguments=['-extract', 'Entitlements.' + entitlement_key, 'json', parsed_plist_file], check_result=False)
+        if check is not None and 'Value not found' not in str(check):
+            continue
+        run_executable_with_output('plutil', arguments=['-insert', 'Entitlements.' + entitlement_key, '-bool', 'true', parsed_plist_file], check_result=False)
+
     # Remove all existing developer certificates
     while True:
         result = run_executable_with_output('plutil', arguments=['-remove', 'DeveloperCertificates.0', parsed_plist_file], check_result=False)
