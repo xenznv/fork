@@ -130,10 +130,16 @@ def process_provisioning_profile(source, destination, certificate_data, signing_
     # now emit; plisttool cross-checks entitlements against the profile and
     # fails when a key is missing. Mirror the app's entitlement keys into the
     # profile so the re-signed profile grants what the target requests.
+    # Mirror the exact fragment values the app targets emit: applesignin uses
+    # a ['Default'] array, the continued-processing gpu key uses true.
     entitlements = profile.setdefault('Entitlements', {})
-    for entitlement_key in ['com.apple.developer.applesignin', 'com.apple.developer.background-tasks.continued-processing.gpu']:
+    entitlement_defaults = {
+        'com.apple.developer.applesignin': ['Default'],
+        'com.apple.developer.background-tasks.continued-processing.gpu': True,
+    }
+    for entitlement_key, value in entitlement_defaults.items():
         if entitlement_key not in entitlements:
-            entitlements[entitlement_key] = True
+            entitlements[entitlement_key] = value
 
     # Keep only the re-signed certificate
     profile['DeveloperCertificates'] = [base64.b64decode(certificate_data)]
