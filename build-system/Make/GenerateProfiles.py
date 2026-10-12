@@ -116,41 +116,34 @@ def get_certificate_base64_from_p12(p12_path, p12_password=''):
 
 
 def process_provisioning_profile(source, destination, certificate_data, signing_identity, keychain_name):
+    import plistlib
+    from datetime import datetime, timedelta
+
     parsed_plist = run_executable_with_output('security', arguments=['cms', '-D', '-i', source], check_result=True)
-    parsed_plist_file = tempfile.mktemp()
-    with open(parsed_plist_file, 'w+') as file:
-        file.write(parsed_plist)
+    profile = plistlib.loads(parsed_plist.encode('utf-8'))
 
     # Example profiles ship with a stale ExpirationDate; rules_apple's plisttool
     # refuses profiles in the past, so push it two years out before re-signing.
-    from datetime import datetime, timedelta
-    new_expiration = (datetime.utcnow() + timedelta(days=730)).strftime('%Y-%m-%dT%H:%M:%SZ')
-    run_executable_with_output('plutil', arguments=['-replace', 'ExpirationDate', '-date', new_expiration, parsed_plist_file], check_result=False)
+    profile['ExpirationDate'] = datetime.utcnow() + timedelta(days=730)
 
     # The example profiles predate some entitlement fragments the app targets
     # now emit; plisttool cross-checks entitlements against the profile and
-    # fails when a key is missing. Mirror the app's entitlements into the
+    # fails when a key is missing. Mirror the app's entitlement keys into the
     # profile so the re-signed profile grants what the target requests.
+    entitlements = profile.setdefault('Entitlements', {})
     for entitlement_key in ['com.apple.developer.applesignin', 'com.apple.developer.background-tasks.continued-processing.gpu']:
-        check = run_executable_with_output('plutil', arguments=['-extract', 'Entitlements.' + entitlement_key, 'json', parsed_plist_file], check_result=False)
-        if check is not None and 'Value not found' not in str(check):
-            continue
-        run_executable_with_output('plutil', arguments=['-insert', 'Entitlements.' + entitlement_key, '-bool', 'true', parsed_plist_file], check_result=False)
+        if entitlement_key not in entitlements:
+            entitlements[entitlement_key] = True
 
-    # Remove all existing developer certificates
-    while True:
-        result = run_executable_with_output('plutil', arguments=['-remove', 'DeveloperCertificates.0', parsed_plist_file], check_result=False)
-        if result is None or 'Could not' in str(result) or result == '':
-            # Check if the removal actually failed by trying to extract
-            check = run_executable_with_output('plutil', arguments=['-extract', 'DeveloperCertificates.0', 'raw', parsed_plist_file], check_result=False)
-            if check is None or 'Could not' in str(check):
-                break
+    # Keep only the re-signed certificate
+    profile['DeveloperCertificates'] = [base64.b64decode(certificate_data)]
 
-    # Insert the new certificate
-    run_executable_with_output('plutil', arguments=['-insert', 'DeveloperCertificates.0', '-data', certificate_data, parsed_plist_file])
+    # Drop the previous signature; security cms -S re-signs below.
+    profile.pop('DER-Encoded-Profile', None)
 
-    # Remove the DER-Encoded-Profile (signature)
-    run_executable_with_output('plutil', arguments=['-remove', 'DER-Encoded-Profile', parsed_plist_file])
+    parsed_plist_file = tempfile.mktemp()
+    with open(parsed_plist_file, 'wb') as file:
+        plistlib.dump(profile, file, fmt=plistlib.FMT_XML)
 
     # Sign with the certificate from the temporary keychain
     run_executable_with_output('security', arguments=[
