@@ -385,7 +385,7 @@
         [delegate cleanup];
     }];
     
-    UIDocumentPickerViewController *controller = [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.image"] inMode:UIDocumentPickerModeOpen];
+    UIDocumentPickerViewController *controller = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[@"public.image"]];
     controller.view.backgroundColor = [UIColor whiteColor];
     controller.delegate = delegate;
     
