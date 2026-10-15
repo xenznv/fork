@@ -7,6 +7,7 @@
 #import <LegacyComponents/TGViewController.h>
 #import <LegacyComponents/TGMenuSheetController.h>
 #import "TGOverlayFormsheetWindow.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import <LegacyComponents/TGAttachmentCarouselItemView.h>
 #import <LegacyComponents/TGAttachmentCameraView.h>
@@ -385,7 +386,7 @@
         [delegate cleanup];
     }];
     
-    UIDocumentPickerViewController *controller = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[@"public.image"]];
+    UIDocumentPickerViewController *controller = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[[UTType typeWithIdentifier:@"public.image"]]];
     controller.view.backgroundColor = [UIColor whiteColor];
     controller.delegate = delegate;
     

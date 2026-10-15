@@ -41,6 +41,7 @@ objc_library(
     sdk_frameworks = [
         "Foundation",
         "UIKIt",
+        "UniformTypeIdentifiers",
         "QuickLook",
         "CoreMotion",
     ],
