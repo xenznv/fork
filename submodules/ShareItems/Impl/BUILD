@@ -21,6 +21,7 @@ objc_library(
     sdk_frameworks = [
         "Foundation",
         "UIKit",
+        "UniformTypeIdentifiers",
         "MobileCoreServices",
         "AddressBook",
         "AVFoundation",

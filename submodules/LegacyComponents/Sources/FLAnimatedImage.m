@@ -10,6 +10,7 @@
 #import "FLAnimatedImage.h"
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <CoreGraphics/CoreGraphics.h>
 
 
@@ -179,7 +180,7 @@ typedef NS_ENUM(NSUInteger, FLAnimatedImageFrameCacheSize) {
         
         // Early return if not GIF!
         CFStringRef imageSourceContainerType = CGImageSourceGetType(_imageSource);
-        BOOL isGIFData = UTTypeConformsTo(imageSourceContainerType, kUTTypeGIF);
+        BOOL isGIFData = [[UTType typeWithIdentifier:(__bridge NSString *)imageSourceContainerType] conformsToType:UTTypeGIF];
         if (!isGIFData) {
             NSLog(@"Error: Supplied data is of type %@ and doesn't seem to be GIF data %@", imageSourceContainerType, data);
             return nil;
