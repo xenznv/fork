@@ -113,5 +113,33 @@ public struct RichTextEditorTheme {
         spoilerDust: .secondaryLabel,
         containerPlaceholder: .placeholderText
     )
+
+    /// Resolves a button's fill + label colors from its color role, disabled state, and link flag.
+    /// Mirrors `instantPageResolvedButtonColors` in the V2 renderer.
+    public func resolvedButtonColors(color: ButtonColor?, isDisabled: Bool, isLink: Bool = false) -> (fill: UIColor, label: UIColor) {
+        if isDisabled {
+            let base = color == .danger ? UIColor(white: 0.6, alpha: 1.0) : (isLink ? UIColor(white: 0.87, alpha: 1.0) : UIColor(white: 0.73, alpha: 1.0))
+            return (fill: base, label: base.withAlphaComponent(0.4))
+        }
+        switch color {
+        case .none, .some(.primary):
+            return (fill: .systemBackground, label: .label)
+        case .some(.danger):
+            return (fill: UIColor(red: 0.95, green: 0.22, blue: 0.27, alpha: 1.0), label: .white)
+        case .some(.success):
+            return (fill: UIColor(red: 0.20, green: 0.69, blue: 0.30, alpha: 1.0), label: .white)
+        case .some(.link):
+            return (fill: .clear, label: accent)
+        }
+    }
+}
+
+extension RichTextEditorTheme {
+    /// Button-fill colors for an inline pill, where the only options are neutral or clear link accent.
+    /// Mirrors the V2 renderer's inline path (there is no disabled inline pill).
+    public func resolvedInlineButtonColors(color: ButtonColor?, isLink: Bool) -> (label: UIColor) {
+        if isLink { return (label: accent) }
+        return (label: color == .danger ? UIColor(red: 0.90, green: 0.18, blue: 0.18, alpha: 1.0) : .label)
+    }
 }
 #endif

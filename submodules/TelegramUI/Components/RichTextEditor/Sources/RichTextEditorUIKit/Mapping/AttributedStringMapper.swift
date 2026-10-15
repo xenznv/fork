@@ -258,5 +258,66 @@ public struct AttributedStringMapper {
         }
         return runs
     }
+
+    /// Whether a button action would draw a type badge. Mirrors the V2 renderer's coarse action→badge lookup
+    /// (see `richTextButtonHasBadge` in `ButtonRowPacking.swift`); identical so the editor's layout matches the
+    /// sent message's.
+    public func buttonHasIcon(_ action: ButtonAction) -> Bool {
+        richTextButtonHasBadge(action)
+    }
+
+    /// Builds a measured `ButtonTextAttachment` for one pill, used by both the row packer (`measure` callback)
+    /// and inline-button measurement. The pill's own typography (semibold, fixed size) is chosen from `isBlockPill`,
+    /// and the label is ellipsised when `maxWidth` is supplied and the label does not fit.
+    public func buttonAttachment(button: ButtonRef, isBlockPill: Bool, maxWidth: CGFloat?, horizontalPadding: CGFloat) -> ButtonTextAttachment {
+        let metrics = RichTextButtonMetrics.default
+        let fontSize = isBlockPill ? metrics.blockFontSize : metrics.inlineFontSize
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let label = button.label.map { NSAttributedString(string: $0.text, attributes: [.font: font]) }.joined()
+        let labelSize = label.size()
+        let iconReserve = isBlockPill ? 0.0 : metrics.inlineIconReserve
+        let labelWidth = labelSize.width + horizontalPadding * 2.0 + iconReserve
+        let capWidth: CGFloat? = maxWidth.map { max(0.0, $0 - horizontalPadding * 2.0) }
+        let truncated: Bool
+        let displayLabel: NSAttributedString
+        let finalWidth: CGFloat
+        if let cap = capWidth, labelWidth > cap {
+            truncated = true
+            // Ellipsise the label to fit.
+            var fit = cap
+            var candidate: NSAttributedString = label
+            for i in (1...(label.string.count)).reversed() {
+                let prefix = String(label.string.prefix(i)) + "\u{2026}"
+                let prefixAttrs = NSAttributedString(string: prefix, attributes: [.font: font])
+                if prefixAttrs.size().width <= cap { fit = prefixAttrs.size().width; candidate = prefixAttrs; break }
+            }
+            displayLabel = candidate; finalWidth = fit + horizontalPadding * 2.0
+        } else {
+            truncated = false; displayLabel = label; finalWidth = labelSize.width + horizontalPadding * 2.0
+        }
+        let ascent = font.lineHeight * 0.55
+        let descent = font.lineHeight * 0.45
+        let colors = isBlockPill
+            ? theme.resolvedButtonColors(color: button.color, isDisabled: button.action == .disabled, isLink: button.isLink)
+            : (fill: .clear, label: theme.resolvedInlineButtonColors(color: button.color, isLink: button.isLink).label)
+        let icon: RichTextButtonIcon?
+        if isBlockPill {
+            icon = button.action == .url || button.action == .copyText || button.action == .unsupported
+                ? RichTextButtonIcon(image: { tint in
+                    // placeholder: a real host would supply the actual icon image
+                    nil
+                })
+                : nil
+        } else {
+            icon = (button.action == .url || button.action == .copyText || button.action == .unsupported) && !button.isLink
+                ? RichTextButtonIcon(image: { tint in nil })
+                : nil
+        }
+        return ButtonTextAttachment(
+            button: button, labelString: displayLabel, size: CGSize(width: finalWidth, height: metrics.blockRowHeight),
+            ascent: ascent, descent: descent, horizontalPadding: horizontalPadding,
+            isTruncated: truncated,
+            colors: colors, icon: icon, iconReserve: iconReserve, isBlockPill: isBlockPill)
+    }
 }
 #endif
