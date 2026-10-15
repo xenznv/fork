@@ -135,11 +135,11 @@ public struct RichTextEditorTheme {
 }
 
 extension RichTextEditorTheme {
-    /// Button-fill colors for an inline pill, where the only options are neutral or clear link accent.
+    /// Button-label color for an inline pill, where the only options are neutral or clear link accent.
     /// Mirrors the V2 renderer's inline path (there is no disabled inline pill).
-    public func resolvedInlineButtonColors(color: ButtonColor?, isLink: Bool) -> (label: UIColor) {
-        if isLink { return (label: accent) }
-        return (label: color == .danger ? UIColor(red: 0.90, green: 0.18, blue: 0.18, alpha: 1.0) : .label)
+    public func resolvedInlineButtonColors(color: ButtonColor?, isLink: Bool) -> UIColor {
+        if isLink { return accent }
+        return color == .danger ? UIColor(red: 0.90, green: 0.18, blue: 0.18, alpha: 1.0) : .label
     }
 }
 #endif

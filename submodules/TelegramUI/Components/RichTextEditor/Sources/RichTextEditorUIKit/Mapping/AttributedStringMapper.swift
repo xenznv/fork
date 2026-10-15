@@ -299,17 +299,24 @@ public struct AttributedStringMapper {
         let descent = font.lineHeight * 0.45
         let colors = isBlockPill
             ? theme.resolvedButtonColors(color: button.color, isDisabled: button.action == .disabled, isLink: button.isLink)
-            : (fill: .clear, label: theme.resolvedInlineButtonColors(color: button.color, isLink: button.isLink).label)
+            : (fill: .clear, label: theme.resolvedInlineButtonColors(color: button.color, isLink: button.isLink))
         let icon: RichTextButtonIcon?
+        let hasIcon: Bool
+        switch button.action {
+        case .url, .copyText, .unsupported:
+            hasIcon = true
+        case .disabled:
+            hasIcon = false
+        }
         if isBlockPill {
-            icon = button.action == .url || button.action == .copyText || button.action == .unsupported
+            icon = hasIcon
                 ? RichTextButtonIcon(image: { tint in
                     // placeholder: a real host would supply the actual icon image
                     nil
                 })
                 : nil
         } else {
-            icon = (button.action == .url || button.action == .copyText || button.action == .unsupported) && !button.isLink
+            icon = hasIcon && !button.isLink
                 ? RichTextButtonIcon(image: { tint in nil })
                 : nil
         }
