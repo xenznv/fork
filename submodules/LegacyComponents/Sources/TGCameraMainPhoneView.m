@@ -6,6 +6,7 @@
 #import <LegacyComponents/TGFont.h>
 
 #import <LegacyComponents/UIControl+HitTestEdgeInsets.h>
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
 
 #import <LegacyComponents/TGPhotoEditorUtils.h>
 #import <LegacyComponents/TGCameraInterfaceAssets.h>
