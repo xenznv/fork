@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGMediaPickerToolbarView.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGMediaPickerToolbarView.h>
 
 #import "LegacyComponentsInternal.h"
 #import <LegacyComponents/TGImageUtils.h>
@@ -273,7 +274,7 @@ const CGFloat TGMediaPickerToolbarHeight = 44.0f;
     {
         _centerButton = [[TGModernButton alloc] initWithFrame:CGRectMake(round((self.frame.size.width - 60.0f) / 2.0f), 0, 60, 44)];
         _centerButton.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
-        _centerButton.adjustsImageWhenHighlighted = false;
+        _centerButton.legacyAdjustsImageWhenHighlighted = false;
         _centerButton.exclusiveTouch = true;
         [_centerButton addTarget:self action:@selector(centerButtonPressed) forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:_centerButton];

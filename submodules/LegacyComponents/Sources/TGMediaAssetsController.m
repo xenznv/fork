@@ -1,4 +1,5 @@
-#import <LegacyComponents/LegacyComponents.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/LegacyComponents.h>
 #import "TGMediaAssetsPickerController.h"
 
 #import <Photos/Photos.h>
@@ -176,7 +177,7 @@ static TGVideoEditAdjustments *TGMediaAssetsPatchedLivePhotoAdjustments(PGPhotoE
         _textView.numberOfLines = 3;
         
         _buttonView = [[TGModernButton alloc] init];
-        _buttonView.adjustsImageWhenHighlighted = false;
+        _buttonView.legacyAdjustsImageWhenHighlighted = false;
         _buttonView.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
         _buttonView.contentEdgeInsets = UIEdgeInsetsMake(0.0, 15.0, 0.0, 0.0);
         _buttonView.titleLabel.font = TGSystemFontOfSize(17.0f);

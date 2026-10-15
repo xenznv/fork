@@ -1,4 +1,5 @@
-#import "TGVideoMessageTrimView.h"
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> "TGVideoMessageTrimView.h"
 
 #import <LegacyComponents/UIControl+HitTestEdgeInsets.h>
 #import "LegacyComponentsInternal.h"
@@ -36,7 +37,7 @@
         _leftSegmentView.exclusiveTouch = true;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        _leftSegmentView.adjustsImageWhenHighlighted = false;
+        _leftSegmentView.legacyAdjustsImageWhenHighlighted = false;
 #pragma clang diagnostic pop
         [_leftSegmentView setBackgroundImage:TGComponentsImageNamed(@"VideoMessageLeftHandle") forState:UIControlStateNormal];
         _leftSegmentView.hitTestEdgeInsets = UIEdgeInsetsMake(-5, -25, -5, -10);
@@ -46,7 +47,7 @@
         _rightSegmentView.exclusiveTouch = true;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        _rightSegmentView.adjustsImageWhenHighlighted = false;
+        _rightSegmentView.legacyAdjustsImageWhenHighlighted = false;
 #pragma clang diagnostic pop
         [_rightSegmentView setBackgroundImage:TGComponentsImageNamed(@"VideoMessageRightHandle") forState:UIControlStateNormal];
         _rightSegmentView.hitTestEdgeInsets = UIEdgeInsetsMake(-5, -10, -5, -25);

@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGToolbarButton.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGToolbarButton.h>
 
 #import "LegacyComponentsInternal.h"
 #import <LegacyComponents/TGImageUtils.h>
@@ -293,8 +294,8 @@ static UIColor *shadowColorForButton(int type)
         
         _landscapeOffset = 0;
         
-        self.adjustsImageWhenDisabled = false;
-        self.adjustsImageWhenHighlighted = false;
+        self.legacyAdjustsImageWhenDisabled = false;
+        self.legacyAdjustsImageWhenHighlighted = false;
         self.enabled = true;
         
         [self updateBackground];
@@ -338,8 +339,8 @@ static UIColor *shadowColorForButton(int type)
         
         _landscapeOffset = 0;
         
-        self.adjustsImageWhenDisabled = false;
-        self.adjustsImageWhenHighlighted = false;
+        self.legacyAdjustsImageWhenDisabled = false;
+        self.legacyAdjustsImageWhenHighlighted = false;
         self.enabled = true;
         
         _customImageNormal = imageNormal;

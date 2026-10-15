@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGMediaPickerSendActionSheetController.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGMediaPickerSendActionSheetController.h>
 #import "LegacyComponentsInternal.h"
 
 #import <LegacyComponents/TGFont.h>
@@ -25,7 +26,7 @@
     self = [super init];
     if (self != nil) {
         _buttonView = [[TGModernButton alloc] init];
-        _buttonView.adjustsImageWhenHighlighted = false;
+        _buttonView.legacyAdjustsImageWhenHighlighted = false;
         
         __weak TGMediaPickerSendActionSheetItemView *weakSelf = self;
         _buttonView.highlitedChanged = ^(bool highlighted) {
@@ -208,8 +209,8 @@
     UIImage *doneImage = pallete != nil ? pallete.sendIconImage : TGComponentsImageNamed(@"PhotoPickerSendIcon");
     
     _sendButton = [[TGModernButton alloc] initWithFrame:CGRectMake(0.0, 0.0, 33.0, 33.0)];
-    _sendButton.adjustsImageWhenDisabled = false;
-    _sendButton.adjustsImageWhenHighlighted = false;
+    _sendButton.legacyAdjustsImageWhenDisabled = false;
+    _sendButton.legacyAdjustsImageWhenHighlighted = false;
     [_sendButton setImage:doneImage forState:UIControlStateNormal];
     [_sendButton addTarget:self action:@selector(sendPressed) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:_sendButton];

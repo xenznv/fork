@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGVideoMessageControls.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGVideoMessageControls.h>
 
 #import <LegacyComponents/LegacyComponents.h>
 
@@ -364,8 +365,8 @@ static CGRect viewFrame(UIView *view)
     [_deleteButton setImage:deleteImage forState:UIControlStateNormal];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    _deleteButton.adjustsImageWhenDisabled = false;
-    _deleteButton.adjustsImageWhenHighlighted = false;
+    _deleteButton.legacyAdjustsImageWhenDisabled = false;
+    _deleteButton.legacyAdjustsImageWhenHighlighted = false;
 #pragma clang diagnostic pop
     [_deleteButton addTarget:self action:@selector(deleteButtonPressed) forControlEvents:UIControlEventTouchUpInside];
     if (!_forStory) {
@@ -384,7 +385,7 @@ static CGRect viewFrame(UIView *view)
     [_sendButton setImage:_assets.sendImage forState:UIControlStateNormal];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    _sendButton.adjustsImageWhenHighlighted = false;
+    _sendButton.legacyAdjustsImageWhenHighlighted = false;
 #pragma clang diagnostic pop
     [_sendButton addTarget:self action:@selector(sendButtonPressed) forControlEvents:UIControlEventTouchUpInside];
     

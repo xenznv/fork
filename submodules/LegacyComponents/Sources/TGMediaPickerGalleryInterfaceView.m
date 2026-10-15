@@ -1,4 +1,5 @@
-#import <LegacyComponents/LegacyComponents.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/LegacyComponents.h>
 #import <LegacyComponents/TGMediaPickerGalleryInterfaceView.h>
 
 #import "LegacyComponentsInternal.h"
@@ -247,7 +248,7 @@ static TGMediaLivePhotoMode TGMediaPickerGalleryResolvedLivePhotoMode(NSNumber *
         
         _muteButton = [[TGModernButton alloc] initWithFrame:CGRectMake(0, 0, 40.0f, 40.0f)];
         _muteButton.hidden = true;
-        _muteButton.adjustsImageWhenHighlighted = false;
+        _muteButton.legacyAdjustsImageWhenHighlighted = false;
         [_muteButton setBackgroundImage:[TGPhotoEditorInterfaceAssets gifBackgroundImage] forState:UIControlStateNormal];
         [_muteButton setImage:[TGPhotoEditorInterfaceAssets muteIcon] forState:UIControlStateNormal];
         [_muteButton setImage:[TGPhotoEditorInterfaceAssets muteActiveIcon] forState:UIControlStateSelected];
@@ -478,7 +479,7 @@ static TGMediaLivePhotoMode TGMediaPickerGalleryResolvedLivePhotoMode(NSNumber *
         if (hasCameraButton)
         {
             _cameraButton = [[TGMediaPickerCameraButton alloc] initWithFrame:CGRectMake(0.0f, 0.0f, 44.0f, 44.0f)];
-            _cameraButton.adjustsImageWhenHighlighted = false;
+            _cameraButton.legacyAdjustsImageWhenHighlighted = false;
             [_cameraButton addTarget:self action:@selector(cameraButtonPressed) forControlEvents:UIControlEventTouchUpInside];
             
             [_wrapperView addSubview:_cameraButton];

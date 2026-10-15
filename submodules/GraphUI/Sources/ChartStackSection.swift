@@ -9,6 +9,7 @@
 import UIKit
 import GraphCore
 import Display
+import UIKitRuntimeUtils
 
 private enum Constants {
     static let chartViewHeightFraction: CGFloat = 0.55
@@ -75,7 +76,7 @@ class ChartStackSection: UIView, ChartThemeContainer {
         backButton.setImage(UIImage(bundleImageName: "Chart/arrow_left"), for: .normal)
         backButton.imageEdgeInsets = UIEdgeInsets(top: 0.0, left: 6.0, bottom: 0.0, right: 3.0)
         backButton.imageView?.tintColor = UIColor(rgb: 0x0088ff)
-        backButton.adjustsImageWhenHighlighted = false
+        backButton.legacyAdjustsImageWhenHighlighted = false
         
         backButton.setVisible(false, animated: false)
     }

@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGVideoMessageCaptureController.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGVideoMessageCaptureController.h>
 
 #import "LegacyComponentsInternal.h"
 
@@ -428,8 +429,8 @@ typedef enum
         
         _switchButton = [[TGModernButton alloc] initWithFrame:CGRectMake(0.0f, 0.0f, 44.0f, 44.0f)];
         _switchButton.alpha = 0.0f;
-        _switchButton.adjustsImageWhenHighlighted = false;
-        _switchButton.adjustsImageWhenDisabled = false;
+        _switchButton.legacyAdjustsImageWhenHighlighted = false;
+        _switchButton.legacyAdjustsImageWhenDisabled = false;
         [_switchButton setImage:switchImage forState:UIControlStateNormal];
         [_switchButton addTarget:self action:@selector(changeCameraPosition) forControlEvents:UIControlEventTouchUpInside];
         [self.view addSubview:_switchButton];

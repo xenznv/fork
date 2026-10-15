@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGPhotoToolbarView.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGPhotoToolbarView.h>
 
 #import "LegacyComponentsInternal.h"
 #import <LegacyComponents/TGFont.h>
@@ -55,7 +56,7 @@
         CGSize buttonSize = CGSizeMake(49.0f, 49.0f);
         _cancelButton = [[TGModernButton alloc] initWithFrame:CGRectMake(0, 0, buttonSize.width, buttonSize.height)];
         _cancelButton.exclusiveTouch = true;
-        _cancelButton.adjustsImageWhenHighlighted = false;
+        _cancelButton.legacyAdjustsImageWhenHighlighted = false;
         [self setBackButtonType:backButton];
         [_cancelButton addTarget:self action:@selector(cancelButtonPressed) forControlEvents:UIControlEventTouchUpInside];
         [_backgroundView addSubview:_cancelButton];
@@ -73,7 +74,7 @@
         } else {
             _doneButton = [[TGModernButton alloc] initWithFrame:CGRectMake(0, 0, buttonSize.width, buttonSize.height)];
             _doneButton.exclusiveTouch = true;
-            _doneButton.adjustsImageWhenHighlighted = false;
+            _doneButton.legacyAdjustsImageWhenHighlighted = false;
             [self setDoneButtonType:doneButton];
             [_doneButton addTarget:self action:@selector(doneButtonPressed) forControlEvents:UIControlEventTouchUpInside];
             [_backgroundView addSubview:_doneButton];

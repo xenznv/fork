@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGModernConversationInputMicButton.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGModernConversationInputMicButton.h>
 
 #import "LegacyComponentsInternal.h"
 
@@ -456,7 +457,7 @@ static const CGFloat outerCircleMinScale = innerCircleRadius / outerCircleRadius
         if (_lock == nil) {
             _stopButton = [[TGModernButton alloc] initWithFrame:CGRectMake(0.0f, 0.0f, 40.0f, 40.0f)];
             _stopButton.accessibilityLabel = TGLocalized(@"VoiceOver.Recording.StopAndPreview");
-            _stopButton.adjustsImageWhenHighlighted = false;
+            _stopButton.legacyAdjustsImageWhenHighlighted = false;
             _stopButton.exclusiveTouch = true;
             [_stopButton setImage:[self stopButtonImage] forState:UIControlStateNormal];
             _stopButton.userInteractionEnabled = false;

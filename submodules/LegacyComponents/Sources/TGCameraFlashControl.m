@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGCameraFlashControl.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGCameraFlashControl.h>
 
 #import "LegacyComponentsInternal.h"
 
@@ -136,7 +137,7 @@ const CGFloat TGCameraFlashControlHeight = 44.0f;
         [self addSubview:_icon];
         
         _button = [[UIButton alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
-        _button.adjustsImageWhenHighlighted = false;
+        _button.legacyAdjustsImageWhenHighlighted = false;
         _button.contentMode = UIViewContentModeCenter;
         _button.exclusiveTouch = true;
         _button.hitTestEdgeInsets = UIEdgeInsetsMake(0, -10, 0, -10);

@@ -1,4 +1,5 @@
-#import <LegacyComponents/TGCameraFlipButton.h>
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGCameraFlipButton.h>
 
 #import <LegacyComponents/TGCameraInterfaceAssets.h>
 #import "LegacyComponentsInternal.h"
@@ -11,7 +12,7 @@
     self = [super initWithFrame:frame];
     if (self != nil)
     {
-        self.adjustsImageWhenHighlighted = false;
+        self.legacyAdjustsImageWhenHighlighted = false;
         self.modernHighlight = false;
         self.exclusiveTouch = true;
         self.backgroundColor = [TGCameraInterfaceAssets buttonColor];
@@ -119,7 +120,7 @@
     self = [super initWithFrame:frame];
     if (self != nil)
     {
-        self.adjustsImageWhenHighlighted = false;
+        self.legacyAdjustsImageWhenHighlighted = false;
         self.modernHighlight = false;
         self.exclusiveTouch = true;
         self.backgroundColor = [TGCameraInterfaceAssets buttonColor];

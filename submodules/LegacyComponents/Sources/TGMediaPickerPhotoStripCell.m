@@ -1,4 +1,5 @@
-#import "TGMediaPickerPhotoStripCell.h"
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> "TGMediaPickerPhotoStripCell.h"
 
 #import "LegacyComponentsInternal.h"
 #import <LegacyComponents/TGFont.h>
@@ -390,7 +391,7 @@ NSString *const TGMediaPickerPhotoStripCellKind = @"PhotoStripCell";
         
         [self setImage:image forState:UIControlStateNormal];
         
-        self.adjustsImageWhenHighlighted = false;
+        self.legacyAdjustsImageWhenHighlighted = false;
     }
     return self;
 }

@@ -1,4 +1,5 @@
-#import "TGMediaPickerGalleryVideoTrimView.h"
+#import
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> "TGMediaPickerGalleryVideoTrimView.h"
 
 #import "LegacyComponentsInternal.h"
 
@@ -80,7 +81,7 @@
         UIImage *borderHighlightedImage = TGTintedImage(border, accentColor);
         
         _leftSegmentView = [[UIButton alloc] initWithFrame:CGRectMake(0, 0, 12, 40)];
-        _leftSegmentView.adjustsImageWhenHighlighted = false;
+        _leftSegmentView.legacyAdjustsImageWhenHighlighted = false;
         [_leftSegmentView setBackgroundImage:leftImage forState:UIControlStateNormal];
         [_leftSegmentView setBackgroundImage:leftHighlightedImage forState:UIControlStateSelected];
         [_leftSegmentView setBackgroundImage:leftHighlightedImage forState:UIControlStateSelected | UIControlStateHighlighted];
@@ -88,7 +89,7 @@
         [self addSubview:_leftSegmentView];
         
         _rightSegmentView = [[UIButton alloc] initWithFrame:CGRectMake(0, 0, 12, 40)];
-        _rightSegmentView.adjustsImageWhenHighlighted = false;
+        _rightSegmentView.legacyAdjustsImageWhenHighlighted = false;
         [_rightSegmentView setBackgroundImage:rightImage forState:UIControlStateNormal];
         [_rightSegmentView setBackgroundImage:rightHighlightedImage forState:UIControlStateSelected];
         [_rightSegmentView setBackgroundImage:rightHighlightedImage forState:UIControlStateSelected | UIControlStateHighlighted];
