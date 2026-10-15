@@ -1241,6 +1241,17 @@ public extension Api {
                 serializeInt64(_data.videoId, buffer: buffer, boxed: false)
                 _data.caption.serialize(buffer, true)
                 break
+            case .pageBlockButtonRow(let _data):
+                if boxed {
+                    buffer.appendInt32(1835270936)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                buffer.appendInt32(481674261)
+                buffer.appendInt32(Int32(_data.buttons.count))
+                for item in _data.buttons {
+                    item.serialize(buffer, true)
+                }
+                break
             }
         }
 
@@ -1292,20 +1303,7 @@ public extension Api {
                 return ("pageBlockKicker", [("text", ConstructorParameterDescription(_data.text))])
             case .pageBlockList(let _data):
                 return ("pageBlockList", [("items", ConstructorParameterDescription(_data.items))])
-            case .pageBlockButtonRow(let _data):
-                if boxed {
-                    buffer.appendInt32(1835270936)
-                }
-                serializeInt32(_data.flags, buffer: buffer, boxed: false)
-                buffer.appendInt32(481674261)
-                buffer.appendInt32(Int32(_data.buttons.count))
-                for item in _data.buttons {
-                    item.serialize(buffer, true)
-                }
-                break
-                        case .pageBlockButtonRow(let _data):
-                return ("pageBlockButtonRow", [("flags", ConstructorParameterDescription(_data.flags)), ("buttons", ConstructorParameterDescription(_data.buttons))])
-                        case .pageBlockMap(let _data):
+            case .pageBlockMap(let _data):
                 return ("pageBlockMap", [("geo", ConstructorParameterDescription(_data.geo)), ("zoom", ConstructorParameterDescription(_data.zoom)), ("w", ConstructorParameterDescription(_data.w)), ("h", ConstructorParameterDescription(_data.h)), ("caption", ConstructorParameterDescription(_data.caption))])
             case .pageBlockMath(let _data):
                 return ("pageBlockMath", [("source", ConstructorParameterDescription(_data.source))])
