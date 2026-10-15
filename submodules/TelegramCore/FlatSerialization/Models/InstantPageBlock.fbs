@@ -1,5 +1,6 @@
 include "RichText.fbs";
 include "MediaId.fbs";
+include "InstantPageButton.fbs";
 include "TelegramChannel.fbs";
 include "PixelDimensions.fbs";
 include "RichText.fbs";
@@ -37,7 +38,9 @@ union InstantPageBlock_Value {
     InstantPageBlock_Map,
     InstantPageBlock_Heading,
     InstantPageBlock_Formula,
-    InstantPageBlock_Thinking
+    InstantPageBlock_Thinking,
+    InstantPageBlock_ButtonRow,
+    InstantPageBlock_Document
 }
 
 table InstantPageBlock {
@@ -202,6 +205,16 @@ table InstantPageBlock_Formula {
 
 table InstantPageBlock_Thinking {
     text:RichText (id: 0, required);
+}
+
+table InstantPageBlock_ButtonRow {
+    alignment:int32 (id: 0);
+    buttons:[InstantPageButton] (id: 1, required);
+}
+
+table InstantPageBlock_Document {
+    id:MediaId (id: 0, required);
+    caption:InstantPageCaption (id: 1, required);
 }
 
 table InstantPageCaption {

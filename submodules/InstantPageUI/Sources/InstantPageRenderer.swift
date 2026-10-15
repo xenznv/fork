@@ -36,7 +36,7 @@ public enum InstantPageV2StableItemId: Hashable {
 }
 
 public enum InstantPageV2ItemKind: Hashable {
-    case text, codeBlock, divider, listMarker, blockQuoteBar, shape, imageOrnament, mediaPlaceholder, table, anchor, formula, slideshow, quoteFrame
+    case text, codeBlock, divider, listMarker, blockQuoteBar, shape, imageOrnament, mediaPlaceholder, table, anchor, formula, slideshow, quoteFrame, inlineButton, buttonRow, document
 }
 
 // MARK: - Render context
@@ -159,6 +159,15 @@ public final class InstantPageV2View: UIView {
     /// Fired when an interactive checklist checkbox is tapped. `path` is the marker's
     /// structural path (see InstantPage.togglingCheckbox); `newValue` is the toggled state.
     public var checkboxTapped: ((_ path: [Int], _ newValue: Bool) -> Void)?
+    /// Fired when an inline `RichText.textButton` or a `pageBlockButtonRow` member is tapped. The
+    /// promise is the button's loading-effect driver (the pill paints its shimmer while `true`);
+    /// the host resolves it when the action is dispatched. Mirrors `InstantPageV2DocumentView`'s
+    /// re-wiring invariant: both makeItemView and the REUSE path set this on the view.
+    public var onButtonTapped: ((InstantPageButton, Promise<Bool>) -> Void)?
+    /// Fired when a document block's filed file is opened (tap on an already-downloaded file).
+    /// Fetch/cancel for undownloaded files run inside the row itself, through the fetch manager;
+    /// only `open` reaches the host.
+    public var onDocumentTapped: ((TelegramMediaFile) -> Void)?
 
     var itemViews: [InstantPageItemView] = []
     private var itemViewStableIds: [InstantPageV2StableItemId] = []
@@ -401,6 +410,62 @@ public final class InstantPageV2View: UIView {
                     data.itemLayer.frame = itemFrame
                     data.textView = textView
                     data.charIndexInItem = emojiItem.range.location
+                }
+            }
+        }
+
+        // Emoji INSIDE button labels: their emojis are drawn against the pill's own company layer
+        // coordinates — the pill paints its own label, so the layers must sit in the
+        // `emojiContainerView`'s (pill-local) frame space that the content view also uses, and be
+        // positioned via [`instantPageButtonEmojiPlacements`](InstantPageInlineButton.swift), the same
+        // pure function the pill's label-marker uses.
+        for view in self.itemViews {
+            let pills: [InstantPageV2ButtonPillView]
+            if let inlineView = view as? InstantPageV2InlineButtonView {
+                pills = [inlineView.pillView]
+            } else if let rowView = view as? InstantPageV2ButtonRowView {
+                pills = rowView.pillViews
+            } else {
+                continue
+            }
+            for pill in pills {
+                for placement in instantPageButtonEmojiPlacements(attachment: pill.attachment, pillSize: pill.bounds.size) {
+                    let index = nextIndexById[placement.emoji.fileId] ?? 0
+                    nextIndexById[placement.emoji.fileId] = index + 1
+                    let id = InlineStickerItemLayer.Key(id: placement.emoji.fileId, index: index)
+                    validIds.append(id)
+
+                    // Pill emoji are ALWAYS revealed: their layer has no text view to key the
+                    // reveal count to, and a pill sits inside an already-revealed line.
+                    let pointSize = floor(placement.frame.width * 1.3)
+                    let data: InstantPageEmojiLayerData
+                    if let existing = self.inlineStickerItemLayers[id] {
+                        data = existing
+                        if data.itemLayer.superlayer !== pill.emojiContainerView.layer {
+                            pill.emojiContainerView.layer.addSublayer(data.itemLayer)
+                        }
+                    } else {
+                        let layer = InlineStickerItemLayer(
+                            context: context,
+                            userLocation: .other,
+                            attemptSynchronousLoad: false,
+                            emoji: placement.emoji,
+                            file: placement.emoji.file,
+                            cache: cache,
+                            renderer: renderer,
+                            placeholderColor: UIColor(white: 0.5, alpha: 0.3),
+                            pointSize: CGSize(width: pointSize, height: pointSize),
+                            dynamicColor: pill.resolvedLabelColor
+                        )
+                        layer.opacity = 1.0
+                        data = InstantPageEmojiLayerData(itemLayer: layer)
+                        self.inlineStickerItemLayers[id] = data
+                        pill.emojiContainerView.layer.addSublayer(layer)
+                    }
+                    data.itemLayer.dynamicColor = pill.resolvedLabelColor
+                    data.itemLayer.frame = placement.frame
+                    data.textView = nil
+                    data.charIndexInItem = -1
                 }
             }
         }
@@ -737,6 +802,23 @@ public final class InstantPageV2View: UIView {
             guard let v = existingView as? InstantPageV2SlideshowView, let rc = self.renderContext else { return nil }
             v.update(item: slideshow, theme: theme, renderContext: rc)
             return v
+        case let .inlineButton(button):
+            guard let v = existingView as? InstantPageV2InlineButtonView else { return nil }
+            v.update(item: button, theme: theme)
+            // LOAD-BEARING re-wire: a recycled view's closure still points at the previous
+            // InstantPageV2View; without this, taps silently stop after scrolling away and back.
+            v.onButtonTapped = self.onButtonTapped
+            return v
+        case let .buttonRow(row):
+            guard let v = existingView as? InstantPageV2ButtonRowView else { return nil }
+            v.update(item: row, theme: theme)
+            v.onButtonTapped = self.onButtonTapped
+            return v
+        case let .document(document):
+            guard let v = existingView as? InstantPageV2DocumentView, let rc = self.renderContext else { return nil }
+            v.update(item: document, theme: theme, renderContext: rc)
+            v.onDocumentTapped = self.onDocumentTapped
+            return v
         }
     }
 
@@ -747,6 +829,7 @@ public final class InstantPageV2View: UIView {
         case let .mediaMap(m):         return .media(m.media.index)
         case let .mediaCoverImage(m):  return .media(m.media.index)
         case let .mediaAudio(m):       return .media(m.media.index)
+        case let .document(d):         return .media(d.media.index)
         case let .details(d):          return .details(d.index)
         case .text:                    return .positional(.text, position)
         case .codeBlock:               return .positional(.codeBlock, position)
@@ -762,6 +845,8 @@ public final class InstantPageV2View: UIView {
         case .formula:                 return .positional(.formula, position)
         case .thinking:                return .thinking(position)
         case .slideshow:               return .positional(.slideshow, position)
+        case .inlineButton:            return .positional(.inlineButton, position)
+        case .buttonRow:               return .positional(.buttonRow, position)
         }
     }
 
@@ -874,6 +959,25 @@ public final class InstantPageV2View: UIView {
                 return InstantPageV2SlideshowView(item: slideshow, renderContext: renderContext, theme: theme)
             } else {
                 return InstantPageV2MediaPlaceholderView(item: InstantPageV2MediaPlaceholderItem(frame: slideshow.frame, kind: .slideshow, cornerRadius: 0.0), theme: theme)
+            }
+        case let .inlineButton(button):
+            let view = InstantPageV2InlineButtonView(item: button, theme: theme)
+            view.onButtonTapped = self.onButtonTapped
+            return view
+        case let .buttonRow(row):
+            let view = InstantPageV2ButtonRowView(item: row, theme: theme)
+            view.onButtonTapped = self.onButtonTapped
+            return view
+        case let .document(document):
+            if let renderContext = self.renderContext {
+                let view = InstantPageV2DocumentView(item: document, renderContext: renderContext, theme: theme)
+                view.onDocumentTapped = self.onDocumentTapped
+                return view
+            } else {
+                // No render context (zero-arg preview constructor): the document row is inert there
+                // — the placeholder fallback has no document kind, so keep the row VISIBLY present
+                // with the audio placeholder's shape instead of deleting the block.
+                return InstantPageV2MediaPlaceholderView(item: InstantPageV2MediaPlaceholderItem(frame: document.frame, kind: .audio, cornerRadius: 0.0), theme: theme)
             }
         }
     }

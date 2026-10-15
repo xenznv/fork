@@ -24,6 +24,14 @@ enum InstantPageTextStyle {
 }
 
 let InstantPageLineSpacingFactorAttribute = "LineSpacingFactorAttribute"
+/// Payload of an inline `RichText.textButton` placeholder: an `InstantPageInlineButtonAttachment`
+/// (button model + measured pill metrics). Stored as a raw String key like its sibling attributes;
+/// `layoutTextItem` reads it back per run.
+let InstantPageInlineButtonAttribute = "InlineButtonAttribute"
+/// The side of an emoji square inside a button label, written by
+/// `instantPageButtonLabelWithFittedEmoji` next to the rewritten run delegate. Inert for a pill
+/// (which draws its own label); the link-styled path's line layout reads it to size the drawn square.
+let InstantPageEmojiSizeAttribute = "EmojiSizeAttribute"
 let InstantPageMarkerColorAttribute = "MarkerColorAttribute"
 let InstantPageMediaIdAttribute = "MediaIdAttribute"
 let InstantPageMediaDimensionsAttribute = "MediaDimensionsAttribute"

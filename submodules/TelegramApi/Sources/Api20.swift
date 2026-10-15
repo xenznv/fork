@@ -1921,4 +1921,75 @@ public extension Api {
             }
         }
     }
+    indirect enum PageButton: TypeConstructorDescription {
+        public class Cons_pageButton: TypeConstructorDescription {
+            public var flags: Int32
+            public var text: Api.RichText
+            public var type: Api.InlineButtonType
+            public var style: Api.RichButtonStyle?
+            public init(flags: Int32, text: Api.RichText, type: Api.InlineButtonType, style: Api.RichButtonStyle?) {
+                self.flags = flags
+                self.text = text
+                self.type = type
+                self.style = style
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("pageButton", [("flags", ConstructorParameterDescription(self.flags)), ("text", ConstructorParameterDescription(self.text)), ("type", ConstructorParameterDescription(self.type)), ("style", ConstructorParameterDescription(self.style))])
+            }
+        }
+        case pageButton(Cons_pageButton)
+
+        public func serialize(_ buffer: Buffer, _ boxed: Swift.Bool) {
+            switch self {
+            case .pageButton(let _data):
+                if boxed {
+                    buffer.appendInt32(1764381832)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                _data.text.serialize(buffer, true)
+                _data.type.serialize(buffer, true)
+                if Int(_data.flags) & Int(1 << 0) != 0 {
+                    _data.style!.serialize(buffer, true)
+                }
+                break
+            }
+        }
+
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+            switch self {
+            case .pageButton(let _data):
+                return ("pageButton", [("flags", ConstructorParameterDescription(_data.flags)), ("text", ConstructorParameterDescription(_data.text)), ("type", ConstructorParameterDescription(_data.type)), ("style", ConstructorParameterDescription(_data.style))])
+            }
+        }
+
+        public static func parse_pageButton(_ reader: BufferReader) -> PageButton? {
+            var _1: Int32?
+            _1 = reader.readInt32()
+            var _2: Api.RichText?
+            if let signature = reader.readInt32() {
+                _2 = Api.parse(reader, signature: signature) as? Api.RichText
+            }
+            var _3: Api.InlineButtonType?
+            if let signature = reader.readInt32() {
+                _3 = Api.parse(reader, signature: signature) as? Api.InlineButtonType
+            }
+            var _4: Api.RichButtonStyle?
+            if Int(_1 ?? 0) & Int(1 << 0) != 0 {
+                if let signature = reader.readInt32() {
+                    _4 = Api.parse(reader, signature: signature) as? Api.RichButtonStyle
+                }
+            }
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            let _c3 = _3 != nil
+            let _c4 = (Int(_1 ?? 0) & Int(1 << 0) == 0) || _4 != nil
+            if _c1 && _c2 && _c3 && _c4 {
+                return Api.PageButton.pageButton(Cons_pageButton(flags: _1!, text: _2!, type: _3!, style: _4))
+            }
+            else {
+                return nil
+            }
+        }
+    }
+
 }

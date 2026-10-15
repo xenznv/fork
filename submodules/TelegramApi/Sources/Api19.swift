@@ -775,6 +775,17 @@ public extension Api {
                 return ("pageBlockPullquote", [("text", ConstructorParameterDescription(self.text)), ("caption", ConstructorParameterDescription(self.caption))])
             }
         }
+        public class Cons_pageBlockButtonRow: TypeConstructorDescription {
+            public var flags: Int32
+            public var buttons: [Api.PageButton]
+            public init(flags: Int32, buttons: [Api.PageButton]) {
+                self.flags = flags
+                self.buttons = buttons
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("pageBlockButtonRow", [("flags", ConstructorParameterDescription(self.flags)), ("buttons", ConstructorParameterDescription(self.buttons))])
+            }
+        }
         public class Cons_pageBlockRelatedArticles: TypeConstructorDescription {
             public var title: Api.RichText
             public var articles: [Api.PageRelatedArticle]
@@ -882,6 +893,7 @@ public extension Api {
         case pageBlockHeading6(Cons_pageBlockHeading6)
         case pageBlockKicker(Cons_pageBlockKicker)
         case pageBlockList(Cons_pageBlockList)
+        case pageBlockButtonRow(Cons_pageBlockButtonRow)
         case pageBlockMap(Cons_pageBlockMap)
         case pageBlockMath(Cons_pageBlockMath)
         case pageBlockOrderedList(Cons_pageBlockOrderedList)
@@ -1280,7 +1292,20 @@ public extension Api {
                 return ("pageBlockKicker", [("text", ConstructorParameterDescription(_data.text))])
             case .pageBlockList(let _data):
                 return ("pageBlockList", [("items", ConstructorParameterDescription(_data.items))])
-            case .pageBlockMap(let _data):
+            case .pageBlockButtonRow(let _data):
+                if boxed {
+                    buffer.appendInt32(1835270936)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                buffer.appendInt32(481674261)
+                buffer.appendInt32(Int32(_data.buttons.count))
+                for item in _data.buttons {
+                    item.serialize(buffer, true)
+                }
+                break
+                        case .pageBlockButtonRow(let _data):
+                return ("pageBlockButtonRow", [("flags", ConstructorParameterDescription(_data.flags)), ("buttons", ConstructorParameterDescription(_data.buttons))])
+                        case .pageBlockMap(let _data):
                 return ("pageBlockMap", [("geo", ConstructorParameterDescription(_data.geo)), ("zoom", ConstructorParameterDescription(_data.zoom)), ("w", ConstructorParameterDescription(_data.w)), ("h", ConstructorParameterDescription(_data.h)), ("caption", ConstructorParameterDescription(_data.caption))])
             case .pageBlockMath(let _data):
                 return ("pageBlockMath", [("source", ConstructorParameterDescription(_data.source))])
@@ -1765,6 +1790,22 @@ public extension Api {
             let _c1 = _1 != nil
             if _c1 {
                 return Api.PageBlock.pageBlockParagraph(Cons_pageBlockParagraph(text: _1!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_pageBlockButtonRow(_ reader: BufferReader) -> PageBlock? {
+            var _1: Int32?
+            _1 = reader.readInt32()
+            var _2: [Api.PageButton]?
+            if let _ = reader.readInt32() {
+                _2 = Api.parseVector(reader, elementSignature: 0, elementType: Api.PageButton.self)
+            }
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            if _c1 && _c2 {
+                return Api.PageBlock.pageBlockButtonRow(Cons_pageBlockButtonRow(flags: _1!, buttons: _2!))
             }
             else {
                 return nil

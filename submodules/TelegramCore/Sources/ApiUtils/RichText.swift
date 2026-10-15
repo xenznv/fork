@@ -82,6 +82,18 @@ extension RichText {
             self = .textSpoiler(text: RichText(apiText: textSpoilerData.text))
         case .textDiff:
             self = .empty
+        case let .textTonAddress(textTonAddressData):
+            self = .textTonAddress(text: RichText(apiText: textTonAddressData.text))
+        case let .textButton(textButtonData):
+            // `textButton` and `pageButton` carry identical fields (`text`, `type`, `style`), so the
+            // button conversion goes through the shared `InstantPageButton(apiButton:)`.
+            let pageButton = Api.PageButton.pageButton(Api.PageButton.Cons_pageButton(
+                flags: textButtonData.flags,
+                text: textButtonData.text,
+                type: textButtonData.type,
+                style: textButtonData.style
+            ))
+            self = .textButton(InstantPageButton(apiButton: pageButton))
         }
     }
     
@@ -145,6 +157,20 @@ extension RichText {
             return .textSpoiler(Api.RichText.Cons_textSpoiler(text: text.apiRichText()))
         case let .textDate(text, date, format):
             return .textDate(Api.RichText.Cons_textDate(flags: format?.rawValue ?? 0, text: text.apiRichText(), date: date))
+        case let .textTonAddress(text):
+            return .textTonAddress(Api.RichText.Cons_textTonAddress(text: text.apiRichText()))
+        case let .textButton(button):
+            // Page buttons serialize over the wire as `pageButton`; `textButton` in chat text must
+            // round-trip through here losing nothing.
+            switch button.apiPageButton() {
+            case let .pageButton(pageButtonData):
+                return .textButton(Api.RichText.Cons_textButton(
+                    flags: pageButtonData.flags,
+                    text: pageButtonData.text,
+                    type: pageButtonData.type,
+                    style: pageButtonData.style
+                ))
+            }
         }
     }
 }

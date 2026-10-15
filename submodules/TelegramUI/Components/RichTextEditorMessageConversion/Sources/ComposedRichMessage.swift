@@ -41,6 +41,12 @@ func normalizedBlocks(_ blocks: [Block], media: [String: Media]) -> [Block] {
         case .blockQuote:
             // Pass through; children are resolved in downstream builders.
             out.append(block)
+        case .buttonRow:
+            // A row of buttons always reaches the rich (InstantPage) path, so it passes untouched.
+            out.append(block)
+        case .details:
+            // Pass through; children are resolved in downstream builders.
+            out.append(block)
         }
     }
     return out
@@ -73,6 +79,9 @@ func documentNeedsRichLayout(_ blocks: [Block], forSendPreview: Bool = false) ->
             if paragraph.list != nil {
                 return true
             }
+            if runsContainButton(paragraph.runs) {
+                return true
+            }
             switch paragraph.style {
             case .heading1, .heading2, .heading3, .heading4, .heading5, .heading6:
                 return true
@@ -99,6 +108,12 @@ func documentNeedsRichLayout(_ blocks: [Block], forSendPreview: Bool = false) ->
         case .blockQuote:
             // A block quote has no entity form → always forces the rich path.
             return true
+        case .buttonRow:
+            // Buttons are wire-only content (`pageButton`/`textButton`) — no entity form.
+            return true
+        case .details:
+            // A folding container has no entity form → always forces the rich path.
+            return true
         }
     }
     return false
@@ -107,6 +122,15 @@ func documentNeedsRichLayout(_ blocks: [Block], forSendPreview: Bool = false) ->
 private func runsContainFormula(_ runs: [TextRun]) -> Bool {
     for run in runs {
         if run.attributes.formula != nil {
+            return true
+        }
+    }
+    return false
+}
+
+private func runsContainButton(_ runs: [TextRun]) -> Bool {
+    for run in runs {
+        if run.attributes.button != nil {
             return true
         }
     }

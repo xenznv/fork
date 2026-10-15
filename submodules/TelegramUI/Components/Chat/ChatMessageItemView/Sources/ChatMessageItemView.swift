@@ -11,6 +11,7 @@ import TelegramPresentationData
 import SwiftSignalKit
 import ChatControllerInteraction
 import ChatMessageItemCommon
+import ChatMessageBubbleContentNode
 import TextFormat
 import ChatMessageItem
 import ChatMessageTransitionNode
@@ -809,66 +810,16 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     
     public func performMessageButtonAction(button: ReplyMarkupButton, progress: Promise<Bool>?) {
         if let item = self.item {
-            switch button.action {
-                case .text:
-                    item.controllerInteraction.sendMessage(button.title, item.message.id)
-                case let .url(url):
-                    var concealed = true
-                    if url.hasPrefix("tg://") {
-                        concealed = false
-                    }
-                item.controllerInteraction.openUrl(ChatControllerInteraction.OpenUrl(url: url, concealed: concealed, progress: progress))
-                case .requestMap:
-                    item.controllerInteraction.shareCurrentLocation(item.message.id)
-                case .requestPhone:
-                    item.controllerInteraction.shareAccountContact(item.message.id)
-                case .openWebApp:
-                    item.controllerInteraction.requestMessageActionCallback(item.message, nil, true, false, progress)
-                case let .callback(requiresPassword, data):
-                    item.controllerInteraction.requestMessageActionCallback(item.message, data, false, requiresPassword, progress)
-                case let .switchInline(samePeer, query, peerTypes):
-                    var botPeer: EngineRawPeer?
-                    
-                    var found = false
-                    for attribute in item.message.attributes {
-                        if let attribute = attribute as? InlineBotMessageAttribute {
-                            if let peerId = attribute.peerId {
-                                botPeer = item.message.peers[peerId]
-                                found = true
-                            }
-                        }
-                    }
-                    if !found {
-                        botPeer = item.message.author
-                    }
-                    
-                    var peerId: EnginePeer.Id?
-                    if samePeer {
-                        peerId = item.message.id.peerId
-                    }
-                    if let botPeer = botPeer, let addressName = botPeer.addressName {
-                        item.controllerInteraction.activateSwitchInline(peerId, "@\(addressName) \(query)", peerTypes)
-                    }
-                case .payment:
-                    item.controllerInteraction.openCheckoutOrReceipt(item.message.id, nil)
-                case let .urlAuth(url, buttonId):
-                    item.controllerInteraction.requestMessageActionUrlAuth(url, .message(id: item.message.id, buttonId: buttonId))
-                case .setupPoll:
-                    break
-                case let .openUserProfile(peerId):
-                    let _ = (item.context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId))
-                    |> deliverOnMainQueue).startStandalone(next: { peer in
-                        if let peer = peer {
-                            item.controllerInteraction.openPeer(peer, .info(nil), nil, .default)
-                        }
-                    })
-                case let .openWebView(url, simple):
-                    item.controllerInteraction.openWebView(button.title, url, simple, .generic)
-                case .requestPeer:
-                    break
-                case let .copyText(payload):
-                    item.controllerInteraction.copyText(payload)
-            }
+            // Shared dispatch (see ChatMessageBubbleContentNode.performMessageButtonAction) — the
+            // same switch the rich-text page buttons use, so the two cannot drift apart.
+            performMessageButtonAction(
+                context: item.context,
+                controllerInteraction: item.controllerInteraction,
+                message: item.message,
+                action: button.action,
+                title: button.title,
+                progress: progress
+            )
         }
     }
     

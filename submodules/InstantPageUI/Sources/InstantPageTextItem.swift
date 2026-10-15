@@ -777,9 +777,24 @@ func attributedStringForRichText(_ text: RichText, styleStack: InstantPageTextSt
             return result
         case let .concat(texts):
             let string = NSMutableAttributedString()
+            // Two DIRECTLY adjacent pills (`.textButton(…)`, `.textButton(…)` with no rich text
+            // between them) touch: each pill's width lives entirely on its placeholder's
+            // CTRunDelegate, so consecutive placeholders leave no advance between the fills. A
+            // spacer run goes between exactly that pair — see `instantPageInlineButtonSpacerString`.
+            var previousEndsWithButton = false
             for text in texts {
                 let substring = attributedStringForRichText(text, styleStack: styleStack, url: url, boundingWidth: boundingWidth, formatDate: formatDate)
+                if previousEndsWithButton, instantPageStringStartsWithInlineButton(substring) {
+                    // The spacer takes the attributes of what it sits in — the last run of the
+                    // accumulated string, falling back to the paragraph style stack for a
+                    // leading-adjacent pair.
+                    let spacerAttributes = string.length != 0
+                        ? string.attributes(at: string.length - 1, effectiveRange: nil)
+                        : styleStack.textAttributes()
+                    string.append(instantPageInlineButtonSpacerString(attributes: spacerAttributes))
+                }
                 string.append(substring)
+                previousEndsWithButton = instantPageStringEndsWithInlineButton(substring)
             }
             return string
         case let .subscript(text):
@@ -1007,6 +1022,65 @@ func attributedStringForRichText(_ text: RichText, styleStack: InstantPageTextSt
             } else {
                 return attributedStringForRichText(text, styleStack: styleStack, url: url, formatDate: formatDate)
             }
+        case let .textTonAddress(text):
+            // Rendered as an autolink to the explorer, like `.textAutoUrl`: the surrounding run keeps
+            // its own typography, the style stack adds the link treatment, and the URL attribute makes
+            // the address tappable. Renders the address text itself, not the wrapped RichText — an
+            // author cannot restyle the payload run.
+            styleStack.push(.link(false))
+            let result = attributedStringForRichText(text, styleStack: styleStack, url: InstantPageUrlItem(url: "https://tonviewer.com/\\(text.plainText)", webpageId: nil), formatDate: formatDate)
+            styleStack.pop()
+            return result
+        case let .textButton(button):
+            // An inline pill inside the paragraph. The string carries a ONE-character space whose
+            // advance is the FULL pill width (via CTRunDelegate — a plain-font space would advance
+            // by the font's own width) so the typesetter lays out the neighbours around the pill;
+            // the `InstantPageInlineButtonAttribute` payload carries the model + measured metrics,
+            // which `layoutTextItem` lifts into a `.inlineButton` item for the pill view.
+            //
+            // The label gets the pill's own typography (15pt semibold, `instantPageInlineButtonFontSize`)
+            // — deliberately NOT the surrounding paragraph font — but keeps the paragraph's colour so
+            // the baked label reads right before the pill recolours it (see
+            // `InstantPageV2ButtonPillView.applyColors`).
+            let paragraphAttributes = styleStack.textAttributes()
+            let labelStyleStack = InstantPageTextStyleStack()
+            labelStyleStack.push(.textColor((paragraphAttributes[NSAttributedString.Key.foregroundColor] as? UIColor) ?? UIColor.black))
+            labelStyleStack.push(.bold)
+            labelStyleStack.push(.fontSize(instantPageInlineButtonFontSize))
+            let labelString = instantPageButtonLabelWithFittedEmoji(
+                attributedStringForRichText(button.text, styleStack: labelStyleStack, formatDate: formatDate)
+            )
+            let attachment = instantPageInlineButtonAttachment(
+                button: button,
+                labelString: labelString,
+                // Cap at the bounding width the caller passed through concat: a pill wider than the
+                // line cannot be re-broken by the line-breaker, so it truncates instead.
+                maxWidth: boundingWidth.map { max(0.0, $0) }
+            )
+
+            struct ReleaseStruct {
+                let attachment: InstantPageInlineButtonAttachment
+            }
+            let releaseContext = UnsafeMutablePointer<ReleaseStruct>.allocate(capacity: 1)
+            releaseContext.initialize(to: ReleaseStruct(attachment: attachment))
+            var callbacks = CTRunDelegateCallbacks(version: kCTRunDelegateVersion1, dealloc: { pointer in
+                pointer.assumingMemoryBound(to: ReleaseStruct.self).deallocate()
+            }, getAscent: { pointer -> CGFloat in
+                return pointer.assumingMemoryBound(to: ReleaseStruct.self).pointee.attachment.ascent
+            }, getDescent: { pointer -> CGFloat in
+                return pointer.assumingMemoryBound(to: ReleaseStruct.self).pointee.attachment.descent
+            }, getWidth: { pointer -> CGFloat in
+                return pointer.assumingMemoryBound(to: ReleaseStruct.self).pointee.attachment.size.width
+            })
+            guard let delegate = CTRunDelegateCreate(&callbacks, releaseContext) else {
+                // Run delegate rejected (should not happen): fall back to the plain label so the
+                // content is at least readable, carrying no button at all.
+                return attributedStringForRichText(button.text, styleStack: styleStack, url: url, formatDate: formatDate)
+            }
+            let placeholder = attributedStringForRichText(.plain(" "), styleStack: styleStack, url: url, formatDate: formatDate).mutableCopy() as! NSMutableAttributedString
+            placeholder.addAttribute(kCTRunDelegateAttributeName as NSAttributedString.Key, value: delegate as Any, range: NSMakeRange(0, placeholder.length))
+            placeholder.addAttribute(NSAttributedString.Key(rawValue: InstantPageInlineButtonAttribute), value: attachment, range: NSMakeRange(0, placeholder.length))
+            return placeholder
     }
 }
 

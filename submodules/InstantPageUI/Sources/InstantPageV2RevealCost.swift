@@ -335,7 +335,10 @@ private func computeEntries(items: [InstantPageV2LaidOutItem], cursor: inout Int
             // removing a thinking block never jumps the answer's reveal position.
             entries.append(.thinking(start: cursor))
         case .formula, .mediaImage, .mediaVideo, .mediaMap, .mediaCoverImage, .mediaAudio, .mediaPlaceholder, .slideshow,
-             .divider, .listMarker, .blockQuoteBar, .shape, .imageOrnament, .anchor, .quoteFrame:
+             .divider, .listMarker, .blockQuoteBar, .shape, .imageOrnament, .anchor, .quoteFrame,
+             .inlineButton, .buttonRow, .document:
+            // Buttons are content too: the streaming cursor is charged their full width (same as
+            // any other non-text block), so pills reveal as fill-in on the reveal-pass curve.
             let start = cursor
             cursor += itemWidthCost(item)
             entries.append(.nonText(start: start, end: cursor))

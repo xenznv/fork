@@ -265,6 +265,44 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                 item.controllerInteraction.requestMessageUpdate(item.message.id, false, nil)
             }
         }
+        view.onButtonTapped = { [weak self] button, progress in
+            guard let self, let item = self.item else {
+                // Resolve the promise so a pill never shimmer forever if the node went away.
+                progress?.set(.result(false))
+                return
+            }
+            item.performRichTextPageButtonAction(action: button.action, title: button.text.plainText, progress: progress)
+        }
+        view.onDocumentTapped = { [weak self] file in
+            guard let self, let item = self.item else { return }
+            // Gallery route (`openInstantPageMedia` builds a one-entry document gallery; GalleryUI
+            // pops the document viewer from it). The source-rect transition is deliberately nil —
+            // the document row's `instantPageTransitionNode(for:)` witness returns nil anyway.
+            openInstantPageMedia(
+                media: InstantPageMedia(index: 0, media: .file(file), url: nil, caption: nil, credit: nil),
+                allMedias: [],
+                webPage: webpage,
+                context: item.context,
+                userLocation: .peer(item.message.id.peerId),
+                present: { [weak self] controller, args in
+                    self?.item?.controllerInteraction.presentController(controller, args)
+                },
+                push: { [weak self] controller in
+                    self?.item?.controllerInteraction.navigationController()?.pushViewController(controller)
+                },
+                openUrl: { [weak self] urlItem in
+                    self?.openInstantPageUrl(urlItem)
+                },
+                baseNavigationController: { [weak self] in
+                    self?.item?.controllerInteraction.navigationController()
+                },
+                transitionArgsForMedia: { _ in
+                    return nil
+                },
+                hiddenMediaCallback: { _ in
+                }
+            )
+        }
         return view
     }
 

@@ -45,6 +45,12 @@ func makeBox(for block: Block, mapper: AttributedStringMapper,
                                                       pullQuoteStyle: pullQuoteStyle,
                                                       expandImage: expandImage,
                                                       collapseImage: collapseImage, width: width)
+    case let .buttonRow(row):   return ButtonRowBox(row: row, mapper: mapper, width: width)
+    case let .details(d):       return DetailsBox(details: d, mapper: mapper,
+                                                  quoteStyle: quoteStyle,
+                                                  pullQuoteStyle: pullQuoteStyle,
+                                                  expandImage: expandImage,
+                                                  collapseImage: collapseImage, width: width)
     }
 }
 

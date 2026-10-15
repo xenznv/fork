@@ -103,6 +103,18 @@ func buildInstantPage(from blocks: [Block], media: [String: Media]) -> InstantPa
             for (id, m) in innerPage.media { pageMedia[id] = m }
             pageBlocks.append(.blockQuote(blocks: innerPage.blocks, caption: authorCaption(bq.author), collapsed: bq.collapsed))
             index += 1
+        case let .buttonRow(row):
+            pageBlocks.append(.buttonRow(
+                alignment: instantPageRowAlignment(from: row.alignment),
+                buttons: row.buttons.map(instantPageButton(from:))
+            ))
+            index += 1
+        case let .details(details):
+            // Recurse the children and merge child media, exactly like the block quote above.
+            let innerPage = buildInstantPage(from: details.children, media: media)
+            for (id, m) in innerPage.media { pageMedia[id] = m }
+            pageBlocks.append(.details(title: richText(from: details.title), blocks: innerPage.blocks, expanded: details.expanded))
+            index += 1
         }
     }
     return InstantPage(blocks: pageBlocks, media: pageMedia, isComplete: true, rtl: false, url: "", views: nil)

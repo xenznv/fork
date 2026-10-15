@@ -35,6 +35,8 @@ private enum InstantPageBlockType: Int32 {
     case heading = 28
     case formula = 29
     case thinking = 30
+    case buttonRow = 31
+    case document = 32
 }
 
 private func decodeListItems(_ decoder: PostboxDecoder) -> [InstantPageListItem] {
@@ -84,6 +86,8 @@ public indirect enum InstantPageBlock: PostboxCoding, Equatable {
     case channelBanner(TelegramChannel?)
     case kicker(RichText)
     case thinking(RichText)
+    case buttonRow(alignment: InstantPageButtonRowAlignment, buttons: [InstantPageButton])
+    case document(id: MediaId, caption: InstantPageCaption)
     case table(title: RichText, rows: [InstantPageTableRow], bordered: Bool, striped: Bool)
     case details(title: RichText, blocks: [InstantPageBlock], expanded: Bool)
     case relatedArticles(title: RichText, articles: [InstantPageRelatedArticle])
@@ -173,6 +177,10 @@ public indirect enum InstantPageBlock: PostboxCoding, Equatable {
                 self = .kicker(decoder.decodeObjectForKey("t", decoder: { RichText(decoder: $0) }) as! RichText)
             case InstantPageBlockType.thinking.rawValue:
                 self = .thinking(decoder.decodeObjectForKey("t", decoder: { RichText(decoder: $0) }) as! RichText)
+            case InstantPageBlockType.buttonRow.rawValue:
+                self = .buttonRow(alignment: InstantPageButtonRowAlignment(rawValue: decoder.decodeInt32ForKey("a", orElse: 0)) ?? .justify, buttons: decoder.decodeObjectArrayWithDecoderForKey("bs"))
+            case InstantPageBlockType.document.rawValue:
+                self = .document(id: MediaId(namespace: decoder.decodeInt32ForKey("i.n", orElse: 0), id: decoder.decodeInt64ForKey("i.i", orElse: 0)), caption: decodeCaption(decoder))
             case InstantPageBlockType.table.rawValue:
                 self = .table(title: decoder.decodeObjectForKey("t", decoder: { RichText(decoder: $0) }) as! RichText, rows: decoder.decodeObjectArrayWithDecoderForKey("r"), bordered: decoder.decodeInt32ForKey("b", orElse: 0) != 0, striped: decoder.decodeInt32ForKey("s", orElse: 0) != 0)
             case InstantPageBlockType.details.rawValue:
@@ -352,6 +360,15 @@ public indirect enum InstantPageBlock: PostboxCoding, Equatable {
             case let .thinking(text):
                 encoder.encodeInt32(InstantPageBlockType.thinking.rawValue, forKey: "r")
                 encoder.encodeObject(text, forKey: "t")
+            case let .buttonRow(alignment, buttons):
+                encoder.encodeInt32(InstantPageBlockType.buttonRow.rawValue, forKey: "r")
+                encoder.encodeInt32(alignment.rawValue, forKey: "a")
+                encoder.encodeObjectArray(buttons, forKey: "bs")
+            case let .document(id, caption):
+                encoder.encodeInt32(InstantPageBlockType.document.rawValue, forKey: "r")
+                encoder.encodeInt32(id.namespace, forKey: "i.n")
+                encoder.encodeInt64(id.id, forKey: "i.i")
+                encoder.encodeObject(caption, forKey: "mc")
             case let .table(title, rows, bordered, striped):
                 encoder.encodeInt32(InstantPageBlockType.table.rawValue, forKey: "r")
                 encoder.encodeObject(title, forKey: "t")
@@ -551,6 +568,18 @@ public indirect enum InstantPageBlock: PostboxCoding, Equatable {
                 } else {
                     return false
                 }
+            case let .buttonRow(lhsAlignment, lhsButtons):
+                if case let .buttonRow(rhsAlignment, rhsButtons) = rhs, lhsAlignment == rhsAlignment, lhsButtons == rhsButtons {
+                    return true
+                } else {
+                    return false
+                }
+            case let .document(lhsId, lhsCaption):
+                if case let .document(rhsId, rhsCaption) = rhs, lhsId == rhsId, lhsCaption == rhsCaption {
+                    return true
+                } else {
+                    return false
+                }
             case let .table(lhsTitle, lhsRows, lhsBordered, lhsStriped):
                 if case let .table(rhsTitle, rhsRows, rhsBordered, rhsStriped) = rhs, lhsTitle == rhsTitle, lhsRows == rhsRows, lhsBordered == rhsBordered, lhsStriped == rhsStriped {
                     return true
@@ -718,6 +747,16 @@ public indirect enum InstantPageBlock: PostboxCoding, Equatable {
                 throw FlatBuffersError.missingRequiredField()
             }
             self = .thinking(try RichText(flatBuffersObject: value.text))
+        case .instantpageblockButtonRow:
+            guard let value = flatBuffersObject.value(type: TelegramCore_InstantPageBlock_ButtonRow.self) else {
+                throw FlatBuffersError.missingRequiredField()
+            }
+            self = .buttonRow(alignment: InstantPageButtonRowAlignment(rawValue: value.alignment) ?? .justify, buttons: try (0 ..< value.buttonsCount).map { try InstantPageButton(flatBuffersObject: value.buttons(at: $0)!) })
+        case .instantpageblockDocument:
+            guard let value = flatBuffersObject.value(type: TelegramCore_InstantPageBlock_Document.self) else {
+                throw FlatBuffersError.missingRequiredField()
+            }
+            self = .document(id: MediaId(value.id), caption: try InstantPageCaption(flatBuffersObject: value.caption))
         case .instantpageblockTable:
             guard let value = flatBuffersObject.value(type: TelegramCore_InstantPageBlock_Table.self) else {
                 throw FlatBuffersError.missingRequiredField()
@@ -971,6 +1010,21 @@ public indirect enum InstantPageBlock: PostboxCoding, Equatable {
             let start = TelegramCore_InstantPageBlock_Thinking.startInstantPageBlock_Thinking(&builder)
             TelegramCore_InstantPageBlock_Thinking.add(text: textOffset, &builder)
             offset = TelegramCore_InstantPageBlock_Thinking.endInstantPageBlock_Thinking(&builder, start: start)
+        case let .buttonRow(alignment, buttons):
+            valueType = .instantpageblockButtonRow
+            let buttonsOffsets = buttons.map { $0.encodeToFlatBuffers(builder: &builder) }
+            let buttonsOffset = builder.createVector(ofOffsets: buttonsOffsets, len: buttonsOffsets.count)
+            let start = TelegramCore_InstantPageBlock_ButtonRow.startInstantPageBlock_ButtonRow(&builder)
+            TelegramCore_InstantPageBlock_ButtonRow.add(alignment: alignment.rawValue, &builder)
+            TelegramCore_InstantPageBlock_ButtonRow.addVectorOf(buttons: buttonsOffset, &builder)
+            offset = TelegramCore_InstantPageBlock_ButtonRow.endInstantPageBlock_ButtonRow(&builder, start: start)
+        case let .document(id, caption):
+            valueType = .instantpageblockDocument
+            let captionOffset = caption.encodeToFlatBuffers(builder: &builder)
+            let start = TelegramCore_InstantPageBlock_Document.startInstantPageBlock_Document(&builder)
+            TelegramCore_InstantPageBlock_Document.add(id: id.asFlatBuffersObject(), &builder)
+            TelegramCore_InstantPageBlock_Document.add(caption: captionOffset, &builder)
+            offset = TelegramCore_InstantPageBlock_Document.endInstantPageBlock_Document(&builder, start: start)
         case let .table(title, rows, bordered, striped):
             valueType = .instantpageblockTable
             let titleOffset = title.encodeToFlatBuffers(builder: &builder)
@@ -1685,6 +1739,12 @@ public extension InstantPage {
                 text = t.plainText
             case let .blockQuote(blocks, _, _):
                 text = blocksPlainText(blocks)
+            case let .buttonRow(_, buttons):
+                if buttons.count == 1 {
+                    text = buttons[0].text.plainText
+                } else {
+                    text = ""
+                }
             default:
                 text = ""
             }

@@ -290,6 +290,8 @@ extension InstantPageBlock {
             case let .pageBlockKicker(pageBlockKickerData):
                 let text = pageBlockKickerData.text
                 self = .kicker(RichText(apiText: text))
+            case let .pageBlockButtonRow(pageBlockButtonRowData):
+                self = .buttonRow(alignment: InstantPageButtonRowAlignment(apiFlags: pageBlockButtonRowData.flags), buttons: pageBlockButtonRowData.buttons.map({ InstantPageButton(apiButton: $0) }))
             case let .pageBlockTable(pageBlockTableData):
                 let (flags, title, rows) = (pageBlockTableData.flags, pageBlockTableData.title, pageBlockTableData.rows)
                 self = .table(title: RichText(apiText: title), rows: rows.map({ InstantPageTableRow(apiTableRow: $0) }), bordered: (flags & (1 << 0)) != 0, striped: (flags & (1 << 1)) != 0)

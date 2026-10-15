@@ -1,0 +1,76 @@
+include "RichText.fbs";
+
+namespace TelegramCore;
+
+// The shared codec behind `RichText.textButton` and `InstantPageBlock.buttonRow` (see
+// SyncCore_InstantPageButton.swift): `InstantPageButtonAction` mirrors the subset of
+// `Api.InlineButtonType` a page button can carry, `InstantPageButton` the shared button shape.
+// `textButton` and `pageButton` (TL) give both constructors the same fields, so one table serves both.
+
+union InstantPageButtonAction_Value {
+    InstantPageButtonAction_Url,
+    InstantPageButtonAction_UrlAuth,
+    InstantPageButtonAction_OpenWebView,
+    InstantPageButtonAction_OpenWebApp,
+    InstantPageButtonAction_Callback,
+    InstantPageButtonAction_Payment,
+    InstantPageButtonAction_SwitchInline,
+    InstantPageButtonAction_OpenUserProfile,
+    InstantPageButtonAction_CopyText,
+    InstantPageButtonAction_Disabled
+}
+
+table InstantPageButtonAction {
+    value:InstantPageButtonAction_Value (id: 1, required);
+}
+
+table InstantPageButtonAction_Url {
+    url:string (id: 0, required);
+}
+
+table InstantPageButtonAction_UrlAuth {
+    url:string (id: 0, required);
+    buttonId:int32 (id: 1);
+}
+
+table InstantPageButtonAction_OpenWebView {
+    url:string (id: 0, required);
+    simple:bool (id: 1);
+}
+
+table InstantPageButtonAction_OpenWebApp {
+}
+
+table InstantPageButtonAction_Callback {
+    data:[ubyte] (id: 0, required);
+    requiresPassword:bool (id: 1);
+}
+
+table InstantPageButtonAction_Payment {
+}
+
+table InstantPageButtonAction_SwitchInline {
+    query:string (id: 0, required);
+    samePeer:bool (id: 1);
+    peerTypes:int32 (id: 2);
+}
+
+table InstantPageButtonAction_OpenUserProfile {
+    peerId:long (id: 0, required);
+}
+
+table InstantPageButtonAction_CopyText {
+    payload:string (id: 0, required);
+}
+
+table InstantPageButtonAction_Disabled {
+}
+
+table InstantPageButton {
+    text:RichText (id: 0, required);
+    action:InstantPageButtonAction (id: 1, required);
+    // `ReplyMarkupButton.Style.Color?` raw value; -1 when absent.
+    color:int32 (id: 2);
+    // `richButtonStyle`'s link bit, stored separately from `color`.
+    isLink:bool (id: 3);
+}

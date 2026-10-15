@@ -327,3 +327,90 @@ open class ChatMessageBubbleContentNode: ASDisplayNode {
         return nil
     }
 }
+
+// MARK: - Message button dispatch (shared by bot keyboard buttons and rich-text page buttons)
+
+/// The full dispatch of a bot-style button action against a message. Lives HERE (not in
+/// ChatMessageItemView) because two otherwise-independent consumers reach it:
+/// - `ChatMessageItemView.performMessageButtonAction` (bot reply-markup buttons)
+/// - `ChatMessageRichDataBubbleContentNode` → `performRichTextPageButtonAction` (the buttons of a
+///   rich-text InstantPage: `RichText.textButton` and `pageBlockButtonRow` members, whose action
+///   is the shared `ReplyMarkupButtonAction` — see `InstantPageButton.action`'s narrowing note).
+/// One implementation rather than two grows out-of-sync copies of the `switchInline` peer lookup.
+public func performMessageButtonAction(
+    context: AccountContext,
+    controllerInteraction: ChatControllerInteraction,
+    message: EngineRawMessage,
+    action: ReplyMarkupButtonAction,
+    title: String,
+    progress: Promise<Bool>?
+) {
+    switch action {
+    case .text:
+        controllerInteraction.sendMessage(title, message.id)
+    case let .url(url):
+        var concealed = true
+        if url.hasPrefix("tg://") {
+            concealed = false
+        }
+        controllerInteraction.openUrl(ChatControllerInteraction.OpenUrl(url: url, concealed: concealed, progress: progress))
+    case .requestMap:
+        controllerInteraction.shareCurrentLocation(message.id)
+    case .requestPhone:
+        controllerInteraction.shareAccountContact(message.id)
+    case .openWebApp:
+        controllerInteraction.requestMessageActionCallback(message, nil, true, false, progress)
+    case let .callback(requiresPassword, data):
+        controllerInteraction.requestMessageActionCallback(message, data, false, requiresPassword, progress)
+    case let .switchInline(samePeer, query, peerTypes):
+        var botPeer: EngineRawPeer?
+        
+        var found = false
+        for attribute in message.attributes {
+            if let attribute = attribute as? InlineBotMessageAttribute {
+                if let peerId = attribute.peerId {
+                    botPeer = message.peers[peerId]
+                    found = true
+                }
+            }
+        }
+        if !found {
+            botPeer = message.author
+        }
+        
+        var peerId: EnginePeer.Id?
+        if samePeer {
+            peerId = message.id.peerId
+        }
+        if let botPeer = botPeer, let addressName = botPeer.addressName {
+            controllerInteraction.activateSwitchInline(peerId, "@\(addressName) \(query)", peerTypes)
+        }
+    case .payment:
+        controllerInteraction.openCheckoutOrReceipt(message.id, nil)
+    case let .urlAuth(url, buttonId):
+        controllerInteraction.requestMessageActionUrlAuth(url, .message(id: message.id, buttonId: buttonId))
+    case .setupPoll:
+        break
+    case let .openUserProfile(peerId):
+        let _ = (context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId))
+        |> deliverOnMainQueue).startStandalone(next: { peer in
+            if let peer = peer {
+                controllerInteraction.openPeer(peer, .info(nil), nil, .default)
+            }
+        })
+    case let .openWebView(url, simple):
+        controllerInteraction.openWebView(title, url, simple, .generic)
+    case .requestPeer:
+        break
+    case let .copyText(payload):
+        controllerInteraction.copyText(payload)
+    }
+}
+
+public extension ChatMessageBubbleContentItem {
+    /// Convenience overload for the rich-text page-button path: the host node holds exactly this
+    /// item type.
+    func performRichTextPageButtonAction(action: ReplyMarkupButtonAction, title: String, progress: Promise<Bool>?) {
+        performMessageButtonAction(context: self.context, controllerInteraction: self.controllerInteraction, message: self.message, action: action, title: title, progress: progress)
+    }
+}

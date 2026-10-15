@@ -2080,4 +2080,392 @@ public extension Api {
             }
         }
     }
+    indirect enum InlineButtonType: TypeConstructorDescription {
+        public class Cons_inlineButtonTypeCallback: TypeConstructorDescription {
+            public var flags: Int32
+            public var data: Buffer
+            public init(flags: Int32, data: Buffer) {
+                self.flags = flags
+                self.data = data
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inlineButtonTypeCallback", [("flags", ConstructorParameterDescription(self.flags)), ("data", ConstructorParameterDescription(self.data))])
+            }
+        }
+        public class Cons_inlineButtonTypeCopy: TypeConstructorDescription {
+            public var copyText: String
+            public init(copyText: String) {
+                self.copyText = copyText
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inlineButtonTypeCopy", [("copyText", ConstructorParameterDescription(self.copyText))])
+            }
+        }
+        public class Cons_inlineButtonTypeSwitchInline: TypeConstructorDescription {
+            public var flags: Int32
+            public var query: String
+            public var peerTypes: [Api.InlineQueryPeerType]?
+            public init(flags: Int32, query: String, peerTypes: [Api.InlineQueryPeerType]?) {
+                self.flags = flags
+                self.query = query
+                self.peerTypes = peerTypes
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inlineButtonTypeSwitchInline", [("flags", ConstructorParameterDescription(self.flags)), ("query", ConstructorParameterDescription(self.query)), ("peerTypes", ConstructorParameterDescription(self.peerTypes))])
+            }
+        }
+        public class Cons_inlineButtonTypeUrl: TypeConstructorDescription {
+            public var url: String
+            public init(url: String) {
+                self.url = url
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inlineButtonTypeUrl", [("url", ConstructorParameterDescription(self.url))])
+            }
+        }
+        public class Cons_inlineButtonTypeUrlAuth: TypeConstructorDescription {
+            public var flags: Int32
+            public var fwdText: String?
+            public var url: String
+            public var buttonId: Int32
+            public init(flags: Int32, fwdText: String?, url: String, buttonId: Int32) {
+                self.flags = flags
+                self.fwdText = fwdText
+                self.url = url
+                self.buttonId = buttonId
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inlineButtonTypeUrlAuth", [("flags", ConstructorParameterDescription(self.flags)), ("fwdText", ConstructorParameterDescription(self.fwdText)), ("url", ConstructorParameterDescription(self.url)), ("buttonId", ConstructorParameterDescription(self.buttonId))])
+            }
+        }
+        public class Cons_inlineButtonTypeUserProfile: TypeConstructorDescription {
+            public var userId: Int64
+            public init(userId: Int64) {
+                self.userId = userId
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inlineButtonTypeUserProfile", [("userId", ConstructorParameterDescription(self.userId))])
+            }
+        }
+        public class Cons_inlineButtonTypeWebView: TypeConstructorDescription {
+            public var url: String
+            public init(url: String) {
+                self.url = url
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inlineButtonTypeWebView", [("url", ConstructorParameterDescription(self.url))])
+            }
+        }
+        public class Cons_inputInlineButtonTypeUrlAuth: TypeConstructorDescription {
+            public var flags: Int32
+            public var fwdText: String?
+            public var url: String
+            public var bot: Api.InputUser?
+            public init(flags: Int32, fwdText: String?, url: String, bot: Api.InputUser?) {
+                self.flags = flags
+                self.fwdText = fwdText
+                self.url = url
+                self.bot = bot
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInlineButtonTypeUrlAuth", [("flags", ConstructorParameterDescription(self.flags)), ("fwdText", ConstructorParameterDescription(self.fwdText)), ("url", ConstructorParameterDescription(self.url)), ("bot", ConstructorParameterDescription(self.bot))])
+            }
+        }
+        public class Cons_inputInlineButtonTypeUserProfile: TypeConstructorDescription {
+            public var userId: Api.InputUser
+            public init(userId: Api.InputUser) {
+                self.userId = userId
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInlineButtonTypeUserProfile", [("userId", ConstructorParameterDescription(self.userId))])
+            }
+        }
+        case inlineButtonTypeBuy
+        case inlineButtonTypeCallback(Cons_inlineButtonTypeCallback)
+        case inlineButtonTypeCopy(Cons_inlineButtonTypeCopy)
+        case inlineButtonTypeDisabled
+        case inlineButtonTypeGame
+        case inlineButtonTypeSwitchInline(Cons_inlineButtonTypeSwitchInline)
+        case inlineButtonTypeUrl(Cons_inlineButtonTypeUrl)
+        case inlineButtonTypeUrlAuth(Cons_inlineButtonTypeUrlAuth)
+        case inlineButtonTypeUserProfile(Cons_inlineButtonTypeUserProfile)
+        case inlineButtonTypeWebView(Cons_inlineButtonTypeWebView)
+        case inputInlineButtonTypeUrlAuth(Cons_inputInlineButtonTypeUrlAuth)
+        case inputInlineButtonTypeUserProfile(Cons_inputInlineButtonTypeUserProfile)
+
+        public func serialize(_ buffer: Buffer, _ boxed: Swift.Bool) {
+            switch self {
+            case .inlineButtonTypeBuy:
+                if boxed {
+                    buffer.appendInt32(1220204453)
+                }
+                break
+            case .inlineButtonTypeCallback(let _data):
+                if boxed {
+                    buffer.appendInt32(693484600)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                serializeBytes(_data.data, buffer: buffer, boxed: false)
+                break
+            case .inlineButtonTypeCopy(let _data):
+                if boxed {
+                    buffer.appendInt32(-1273154958)
+                }
+                serializeString(_data.copyText, buffer: buffer, boxed: false)
+                break
+            case .inlineButtonTypeDisabled:
+                if boxed {
+                    buffer.appendInt32(-1539808867)
+                }
+                break
+            case .inlineButtonTypeGame:
+                if boxed {
+                    buffer.appendInt32(1557360797)
+                }
+                break
+            case .inlineButtonTypeSwitchInline(let _data):
+                if boxed {
+                    buffer.appendInt32(-1820901387)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                serializeString(_data.query, buffer: buffer, boxed: false)
+                if Int(_data.flags) & Int(1 << 1) != 0 {
+                    buffer.appendInt32(481674261)
+                    buffer.appendInt32(Int32(_data.peerTypes!.count))
+                    for item in _data.peerTypes! {
+                        item.serialize(buffer, true)
+                    }
+                }
+                break
+            case .inlineButtonTypeUrl(let _data):
+                if boxed {
+                    buffer.appendInt32(-324732716)
+                }
+                serializeString(_data.url, buffer: buffer, boxed: false)
+                break
+            case .inlineButtonTypeUrlAuth(let _data):
+                if boxed {
+                    buffer.appendInt32(-1076875870)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                if Int(_data.flags) & Int(1 << 0) != 0 {
+                    serializeString(_data.fwdText!, buffer: buffer, boxed: false)
+                }
+                serializeString(_data.url, buffer: buffer, boxed: false)
+                serializeInt32(_data.buttonId, buffer: buffer, boxed: false)
+                break
+            case .inlineButtonTypeUserProfile(let _data):
+                if boxed {
+                    buffer.appendInt32(1067663311)
+                }
+                serializeInt64(_data.userId, buffer: buffer, boxed: false)
+                break
+            case .inlineButtonTypeWebView(let _data):
+                if boxed {
+                    buffer.appendInt32(1003140532)
+                }
+                serializeString(_data.url, buffer: buffer, boxed: false)
+                break
+            case .inputInlineButtonTypeUrlAuth(let _data):
+                if boxed {
+                    buffer.appendInt32(-1721647948)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                if Int(_data.flags) & Int(1 << 1) != 0 {
+                    serializeString(_data.fwdText!, buffer: buffer, boxed: false)
+                }
+                serializeString(_data.url, buffer: buffer, boxed: false)
+                if Int(_data.flags) & Int(1 << 2) != 0 {
+                    _data.bot!.serialize(buffer, true)
+                }
+                break
+            case .inputInlineButtonTypeUserProfile(let _data):
+                if boxed {
+                    buffer.appendInt32(1408487002)
+                }
+                _data.userId.serialize(buffer, true)
+                break
+            }
+        }
+
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+            switch self {
+            case .inlineButtonTypeBuy:
+                return ("inlineButtonTypeBuy", [])
+            case .inlineButtonTypeCallback(let _data):
+                return ("inlineButtonTypeCallback", [("flags", ConstructorParameterDescription(_data.flags)), ("data", ConstructorParameterDescription(_data.data))])
+            case .inlineButtonTypeCopy(let _data):
+                return ("inlineButtonTypeCopy", [("copyText", ConstructorParameterDescription(_data.copyText))])
+            case .inlineButtonTypeDisabled:
+                return ("inlineButtonTypeDisabled", [])
+            case .inlineButtonTypeGame:
+                return ("inlineButtonTypeGame", [])
+            case .inlineButtonTypeSwitchInline(let _data):
+                return ("inlineButtonTypeSwitchInline", [("flags", ConstructorParameterDescription(_data.flags)), ("query", ConstructorParameterDescription(_data.query)), ("peerTypes", ConstructorParameterDescription(_data.peerTypes))])
+            case .inlineButtonTypeUrl(let _data):
+                return ("inlineButtonTypeUrl", [("url", ConstructorParameterDescription(_data.url))])
+            case .inlineButtonTypeUrlAuth(let _data):
+                return ("inlineButtonTypeUrlAuth", [("flags", ConstructorParameterDescription(_data.flags)), ("fwdText", ConstructorParameterDescription(_data.fwdText)), ("url", ConstructorParameterDescription(_data.url)), ("buttonId", ConstructorParameterDescription(_data.buttonId))])
+            case .inlineButtonTypeUserProfile(let _data):
+                return ("inlineButtonTypeUserProfile", [("userId", ConstructorParameterDescription(_data.userId))])
+            case .inlineButtonTypeWebView(let _data):
+                return ("inlineButtonTypeWebView", [("url", ConstructorParameterDescription(_data.url))])
+            case .inputInlineButtonTypeUrlAuth(let _data):
+                return ("inputInlineButtonTypeUrlAuth", [("flags", ConstructorParameterDescription(_data.flags)), ("fwdText", ConstructorParameterDescription(_data.fwdText)), ("url", ConstructorParameterDescription(_data.url)), ("bot", ConstructorParameterDescription(_data.bot))])
+            case .inputInlineButtonTypeUserProfile(let _data):
+                return ("inputInlineButtonTypeUserProfile", [("userId", ConstructorParameterDescription(_data.userId))])
+            }
+        }
+
+        public static func parse_inlineButtonTypeBuy(_ reader: BufferReader) -> InlineButtonType? {
+            return Api.InlineButtonType.inlineButtonTypeBuy
+        }
+        public static func parse_inlineButtonTypeCallback(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: Int32?
+            _1 = reader.readInt32()
+            var _2: Buffer?
+            _2 = parseBytes(reader)
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            if _c1 && _c2 {
+                return Api.InlineButtonType.inlineButtonTypeCallback(Cons_inlineButtonTypeCallback(flags: _1!, data: _2!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inlineButtonTypeCopy(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: String?
+            _1 = parseString(reader)
+            let _c1 = _1 != nil
+            if _c1 {
+                return Api.InlineButtonType.inlineButtonTypeCopy(Cons_inlineButtonTypeCopy(copyText: _1!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inlineButtonTypeDisabled(_ reader: BufferReader) -> InlineButtonType? {
+            return Api.InlineButtonType.inlineButtonTypeDisabled
+        }
+        public static func parse_inlineButtonTypeGame(_ reader: BufferReader) -> InlineButtonType? {
+            return Api.InlineButtonType.inlineButtonTypeGame
+        }
+        public static func parse_inlineButtonTypeSwitchInline(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: Int32?
+            _1 = reader.readInt32()
+            var _2: String?
+            _2 = parseString(reader)
+            var _3: [Api.InlineQueryPeerType]?
+            if Int(_1 ?? 0) & Int(1 << 1) != 0 {
+                if let _ = reader.readInt32() {
+                    _3 = Api.parseVector(reader, elementSignature: 0, elementType: Api.InlineQueryPeerType.self)
+                }
+            }
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            let _c3 = (Int(_1 ?? 0) & Int(1 << 1) == 0) || _3 != nil
+            if _c1 && _c2 && _c3 {
+                return Api.InlineButtonType.inlineButtonTypeSwitchInline(Cons_inlineButtonTypeSwitchInline(flags: _1!, query: _2!, peerTypes: _3))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inlineButtonTypeUrl(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: String?
+            _1 = parseString(reader)
+            let _c1 = _1 != nil
+            if _c1 {
+                return Api.InlineButtonType.inlineButtonTypeUrl(Cons_inlineButtonTypeUrl(url: _1!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inlineButtonTypeUrlAuth(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: Int32?
+            _1 = reader.readInt32()
+            var _2: String?
+            if Int(_1 ?? 0) & Int(1 << 0) != 0 {
+                _2 = parseString(reader)
+            }
+            var _3: String?
+            _3 = parseString(reader)
+            var _4: Int32?
+            _4 = reader.readInt32()
+            let _c1 = _1 != nil
+            let _c2 = (Int(_1 ?? 0) & Int(1 << 0) == 0) || _2 != nil
+            let _c3 = _3 != nil
+            let _c4 = _4 != nil
+            if _c1 && _c2 && _c3 && _c4 {
+                return Api.InlineButtonType.inlineButtonTypeUrlAuth(Cons_inlineButtonTypeUrlAuth(flags: _1!, fwdText: _2, url: _3!, buttonId: _4!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inlineButtonTypeUserProfile(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: Int64?
+            _1 = reader.readInt64()
+            let _c1 = _1 != nil
+            if _c1 {
+                return Api.InlineButtonType.inlineButtonTypeUserProfile(Cons_inlineButtonTypeUserProfile(userId: _1!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inlineButtonTypeWebView(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: String?
+            _1 = parseString(reader)
+            let _c1 = _1 != nil
+            if _c1 {
+                return Api.InlineButtonType.inlineButtonTypeWebView(Cons_inlineButtonTypeWebView(url: _1!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inputInlineButtonTypeUrlAuth(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: Int32?
+            _1 = reader.readInt32()
+            var _2: String?
+            if Int(_1 ?? 0) & Int(1 << 1) != 0 {
+                _2 = parseString(reader)
+            }
+            var _3: String?
+            _3 = parseString(reader)
+            var _4: Api.InputUser?
+            if Int(_1 ?? 0) & Int(1 << 2) != 0 {
+                if let signature = reader.readInt32() {
+                    _4 = Api.parse(reader, signature: signature) as? Api.InputUser
+                }
+            }
+            let _c1 = _1 != nil
+            let _c2 = (Int(_1 ?? 0) & Int(1 << 1) == 0) || _2 != nil
+            let _c3 = _3 != nil
+            let _c4 = (Int(_1 ?? 0) & Int(1 << 2) == 0) || _4 != nil
+            if _c1 && _c2 && _c3 && _c4 {
+                return Api.InlineButtonType.inputInlineButtonTypeUrlAuth(Cons_inputInlineButtonTypeUrlAuth(flags: _1!, fwdText: _2, url: _3!, bot: _4))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inputInlineButtonTypeUserProfile(_ reader: BufferReader) -> InlineButtonType? {
+            var _1: Api.InputUser?
+            if let signature = reader.readInt32() {
+                _1 = Api.parse(reader, signature: signature) as? Api.InputUser
+            }
+            let _c1 = _1 != nil
+            if _c1 {
+                return Api.InlineButtonType.inputInlineButtonTypeUserProfile(Cons_inputInlineButtonTypeUserProfile(userId: _1!))
+            }
+            else {
+                return nil
+            }
+        }
+    }
+
 }

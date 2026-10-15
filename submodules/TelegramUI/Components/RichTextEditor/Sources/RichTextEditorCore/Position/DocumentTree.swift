@@ -66,6 +66,19 @@ public enum DocumentTree {
                 children.append(.paragraph(id: bq.id, children: [.text(length: bq.authorUTF16Count, ref: .quoteAuthor(bq.id))]))
             }
             return .blockQuote(id: bq.id, children: children)
+        case let .buttonRow(row):
+            // A row of pills is one off-the-text-axis atom (like a caption-less audio): the row itself
+            // IS the content — its buttons are edited via the drawer, not the text axis.
+            return .buttonRow(id: row.id)
+        case let .details(d):
+            // Recursive container, shaped exactly like a block quote: children, then the always-present
+            // title (summary) paragraph as the trailing editable region.
+            return .details(id: d.id, children:
+                d.children.map(node(for:)) + []
+                // The title always shows — `DetailsBox` renders it as the container's summary line; the
+                // title text is at nodeStart+1 inside the wrapper.
+                + [.paragraph(id: d.id, children: [.text(length: d.titleUTF16Count, ref: .detailsTitle(d.id))])]
+            )
         }
     }
 

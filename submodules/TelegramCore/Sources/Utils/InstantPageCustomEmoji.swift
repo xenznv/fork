@@ -77,7 +77,7 @@ private func collectCustomEmojiFileIds(_ blocks: [InstantPageBlock], into result
         case let .postEmbed(_, _, _, _, _, blocks, caption), let .collage(blocks, caption), let .slideshow(blocks, caption):
             collectCustomEmojiFileIds(blocks, into: &result, seen: &seen)
             collectCustomEmojiFileIds(caption, into: &result, seen: &seen)
-        case let .table(title, rows, _, _, _):
+        case let .table(title, rows, _, _):
             collectCustomEmojiFileIds(title, into: &result, seen: &seen)
             for row in rows {
                 for cell in row.cells {

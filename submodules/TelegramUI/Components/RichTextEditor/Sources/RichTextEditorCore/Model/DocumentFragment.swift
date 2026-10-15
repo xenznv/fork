@@ -47,6 +47,11 @@ private func regeneratingIDs(_ blocks: [Block]) -> [Block] {
             // fix in DocumentCanvasView+Editing.swift, which hit the same legacy-single-item-init trap).
             return .media(MediaBlock(id: .generate(), items: m.items,
                                      displayWidth: m.displayWidth, alignment: m.alignment, caption: m.caption))
+        case let .buttonRow(row):
+            // Buttons have no nested BlockIDs to regenerate; only the row's own id matters.
+            return .buttonRow(ButtonRowBlock(id: .generate(), buttons: row.buttons, alignment: row.alignment))
+        case let .details(d):
+            return .details(DetailsBlock(id: .generate(), title: d.title, children: regeneratingIDs(d.children), expanded: d.expanded))
         }
     }
 }
