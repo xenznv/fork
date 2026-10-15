@@ -78,7 +78,7 @@ final class ButtonRowBox {
             buttons: buttons,
             alignment: alignment,
             availableWidth: max(0.0, width - (showsMenuAffordance ? ButtonRowBox.menuButtonReserve : 0.0)),
-            metrics: mapper.styleSheet.metrics.button,
+            metrics: RichTextButtonMetrics.default,
             isRTL: mapper.baseWritingDirection == .rightToLeft,
             hasIcon: { [mapper] button in mapper.buttonHasIcon(button.action) },
             measure: { [mapper] button, maxWidth, padding in
@@ -97,11 +97,11 @@ final class ButtonRowBox {
     private func layoutMenuButton(availableWidth: CGFloat) {
         guard showsMenuAffordance else {
             menuButtonFrame = .zero   // `.zero.contains` is false, so hit-testing declines it too
-            packedHeight = max(packedHeight, mapper.styleSheet.metrics.button.blockRowHeight)
+            packedHeight = max(packedHeight, RichTextButtonMetrics.default.blockRowHeight)
             return
         }
         let side = ButtonRowBox.menuButtonSide
-        let rowHeight = mapper.styleSheet.metrics.button.blockRowHeight
+        let rowHeight = RichTextButtonMetrics.default.blockRowHeight
         let lastLineY = pillFrames.last?.minY ?? 0.0
         packedHeight = max(packedHeight, rowHeight)
         menuButtonFrame = CGRect(
@@ -221,7 +221,7 @@ extension ButtonRowBox: CanvasBlock {
             buttons: buttons,
             alignment: alignment,
             availableWidth: max(0.0, width - (showsMenuAffordance ? ButtonRowBox.menuButtonReserve : 0.0)),
-            metrics: mapper.styleSheet.metrics.button,
+            metrics: RichTextButtonMetrics.default,
             isRTL: mapper.baseWritingDirection == .rightToLeft,
             hasIcon: { [mapper] button in mapper.buttonHasIcon(button.action) },
             measure: { [mapper] button, maxWidth, padding in
@@ -231,7 +231,7 @@ extension ButtonRowBox: CanvasBlock {
         )
         // Mirrors `layoutMenuButton`: the reserve guarantees the control fits, so the height is just
         // the packed height, floored at one pill row (an EMPTY row still shows the control).
-        return max(packed.totalHeight, mapper.styleSheet.metrics.button.blockRowHeight)
+        return max(packed.totalHeight, RichTextButtonMetrics.default.blockRowHeight)
     }
 
     func setWidth(_ width: CGFloat) { repack(width: width) }
