@@ -41,7 +41,7 @@ const CGFloat TGMediaPickerToolbarHeight = 44.0f;
         [_leftButton setTitle:TGLocalized(@"Common.Cancel") forState:UIControlStateNormal];
         [_leftButton setTitleColor:TGAccentColor()];
         _leftButton.titleLabel.font = TGSystemFontOfSize(17);
-        _leftButton.contentEdgeInsets = UIEdgeInsetsMake(0, 10, 0, 0);
+        _leftButton.legacyContentEdgeInsets = UIEdgeInsetsMake(0, 10, 0, 0);
         [_leftButton sizeToFit];
         _leftButton.frame = CGRectMake(0, 0, MAX(60, _leftButton.frame.size.width), 44);
         _leftButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
@@ -53,7 +53,7 @@ const CGFloat TGMediaPickerToolbarHeight = 44.0f;
         [_rightButton setTitle:TGLocalized(@"MediaPicker.Send") forState:UIControlStateNormal];
         [_rightButton setTitleColor:TGAccentColor()];
         _rightButton.titleLabel.font = TGMediumSystemFontOfSize(17);
-        _rightButton.contentEdgeInsets = UIEdgeInsetsMake(0, 27, 0, 10);
+        _rightButton.legacyContentEdgeInsets = UIEdgeInsetsMake(0, 27, 0, 10);
         [_rightButton sizeToFit];
         
         CGFloat doneButtonWidth = MAX(40, _rightButton.frame.size.width);

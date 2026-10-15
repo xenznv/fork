@@ -179,7 +179,7 @@ static TGVideoEditAdjustments *TGMediaAssetsPatchedLivePhotoAdjustments(PGPhotoE
         _buttonView = [[TGModernButton alloc] init];
         _buttonView.legacyAdjustsImageWhenHighlighted = false;
         _buttonView.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-        _buttonView.contentEdgeInsets = UIEdgeInsetsMake(0.0, 15.0, 0.0, 0.0);
+        _buttonView.legacyContentEdgeInsets = UIEdgeInsetsMake(0.0, 15.0, 0.0, 0.0);
         _buttonView.titleLabel.font = TGSystemFontOfSize(17.0f);
         _buttonView.highlightBackgroundColor = UIColorRGB(0xebebeb);
         [_buttonView setTitle:TGLocalized(@"Media.LimitedAccessManage") forState:UIControlStateNormal];
@@ -246,7 +246,7 @@ static TGVideoEditAdjustments *TGMediaAssetsPatchedLivePhotoAdjustments(PGPhotoE
     _iconView.frame = CGRectMake(self.safeAreaInset.left + 15.0, 16.0, 20.0, 20.0);
     _labelView.frame = _iconView.frame;
     
-    _buttonView.contentEdgeInsets = UIEdgeInsetsMake(0.0, self.safeAreaInset.left + 15.0, 0.0, 0.0);
+    _buttonView.legacyContentEdgeInsets = UIEdgeInsetsMake(0.0, self.safeAreaInset.left + 15.0, 0.0, 0.0);
     _titleView.frame = CGRectMake(self.safeAreaInset.left + 42.0, 15.0, _titleSize.width, _titleSize.height);
     _textView.frame = CGRectMake(self.safeAreaInset.left + 15.0, 46.0, _textSize.width, _textSize.height);
     _separatorView.frame = CGRectMake(self.safeAreaInset.left + 15.0, self.bounds.size.height - 46.0, self.bounds.size.width, TGScreenPixel);

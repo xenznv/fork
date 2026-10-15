@@ -314,7 +314,7 @@
         _doneButton.exclusiveTouch = true;
         _doneButton.hidden = true;
         _doneButton.titleLabel.font = TGMediumSystemFontOfSize(18);
-        _doneButton.contentEdgeInsets = UIEdgeInsetsMake(0, 0, 0, 20);
+        _doneButton.legacyContentEdgeInsets = UIEdgeInsetsMake(0, 0, 0, 20);
         [_doneButton setTitle:TGLocalized(@"Common.Done") forState:UIControlStateNormal];
         [_doneButton setTintColor:[TGCameraInterfaceAssets normalColor]];
         [_doneButton sizeToFit];
