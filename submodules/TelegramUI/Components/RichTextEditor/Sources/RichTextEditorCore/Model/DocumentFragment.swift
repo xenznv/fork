@@ -364,14 +364,14 @@ extension Document {
             case .paragraph(let p):
                 let a = max(lo, textStart), b = min(hi, textStart + p.utf16Count)
                 if a < b || (p.utf16Count == 0 && lo <= textStart && hi > textStart) {
-                    let r = sliceRuns(p.runs, fromUTF16: max(0, a - textStart), toUTF16: max(0, b - textStart))
+                    let r = self.sliceRuns(p.runs, fromUTF16: max(0, a - textStart), toUTF16: max(0, b - textStart))
                     out.append(.paragraph(ParagraphBlock(id: .generate(), style: p.style,
                                                           paragraph: p.paragraph, list: p.list, runs: r)))
                 }
             case .code(let c):
                 let a = max(lo, textStart), b = min(hi, textStart + c.utf16Count)
                 if a < b {
-                    let r = sliceRuns(c.runs, fromUTF16: a - textStart, toUTF16: b - textStart)
+                    let r = self.sliceRuns(c.runs, fromUTF16: a - textStart, toUTF16: b - textStart)
                     out.append(.code(CodeBlock(id: .generate(), language: c.language, runs: r)))
                 }
                 // Note: empty code blocks (utf16Count == 0) are intentionally not captured — they
@@ -385,7 +385,7 @@ extension Document {
                 let ptStart = cursor + 2
                 let a = max(lo, ptStart), b = min(hi, ptStart + pq.utf16Count)
                 if a < b {
-                    let r = sliceRuns(pq.runs, fromUTF16: a - ptStart, toUTF16: b - ptStart)
+                    let r = self.sliceRuns(pq.runs, fromUTF16: a - ptStart, toUTF16: b - ptStart)
                     // A partial pull-text copy carries no author — the author is off the flat text axis,
                     // so it only survives when the WHOLE pull text is captured.
                     let author = (a == ptStart && b == ptStart + pq.utf16Count) ? pq.author : []
@@ -407,6 +407,20 @@ extension Document {
                 // caller's range expansion these are always fully covered. `regeneratingIDs` gives fresh IDs.
                 if carryingNonTextBlocks, lo <= cursor && hi >= cursor + size {
                     out.append(contentsOf: regeneratingIDs([block]))
+                }
+            case let .buttonRow(row):
+                // Button row: capture only when fully covered (partial rows are incomplete)
+                if lo <= cursor && hi >= cursor + size {
+                    out.append(.buttonRow(ButtonRowBlock(id: .generate(),
+                                                        buttons: row.buttons,
+                                                        alignment: row.alignment)))
+                }
+            case let .details(d):
+                // Details block: capture only when fully covered
+                if lo <= cursor && hi >= cursor + size {
+                    out.append(.details(DetailsBlock(id: .generate(),
+                                                    title: self.sliceRuns(d.title, fromUTF16: max(0, lo - cursor), toUTF16: max(0, hi - cursor)),
+                                                    children: regeneratingIDs(d.children))))
                 }
             }
             cursor += size

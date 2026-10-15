@@ -24,6 +24,10 @@ public struct CharacterAttributes: Codable, Equatable {
     /// revealed. Additive — suppresses no other attribute. No Markdown form yet (deferred to Phase 5c).
     public var spoiler: Bool
 
+    /// An attached inline button (a ) carried on a single  placeholder run.
+    /// Present only on runs that render as a tappable pill inside flowing text (e.g. ).
+    public var button: ButtonRef?
+
     public init(
         bold: Bool = false,
         italic: Bool = false,
@@ -60,7 +64,7 @@ public struct CharacterAttributes: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case bold, italic, underline, strikethrough, inlineCode
-        case fontFamily, fontSize, foreground, highlight, link, baselineOffset, emoji, formula, spoiler
+        case fontFamily, fontSize, foreground, highlight, link, baselineOffset, emoji, formula, spoiler, button
     }
 
     // Custom decode so documents written before a field existed still load (synthesized Codable
@@ -82,5 +86,6 @@ public struct CharacterAttributes: Codable, Equatable {
         emoji = try c.decodeIfPresent(EmojiRef.self, forKey: .emoji)
         formula = try c.decodeIfPresent(String.self, forKey: .formula)
         spoiler = try c.decodeIfPresent(Bool.self, forKey: .spoiler) ?? false
+        button = try c.decodeIfPresent(ButtonRef.self, forKey: .button)
     }
 }
