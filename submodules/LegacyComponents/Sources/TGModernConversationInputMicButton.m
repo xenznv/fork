@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGModernConversationInputMicButton.h>
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import <LegacyComponents/TGModernConversationInputMicButton.h>
 
 #import "LegacyComponentsInternal.h"
 

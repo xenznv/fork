@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGVideoMessageCaptureController.h>
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import <LegacyComponents/TGVideoMessageCaptureController.h>
 
 #import "LegacyComponentsInternal.h"
 

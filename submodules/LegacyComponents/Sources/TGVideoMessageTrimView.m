@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> "TGVideoMessageTrimView.h"
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import "TGVideoMessageTrimView.h"
 
 #import <LegacyComponents/UIControl+HitTestEdgeInsets.h>
 #import "LegacyComponentsInternal.h"

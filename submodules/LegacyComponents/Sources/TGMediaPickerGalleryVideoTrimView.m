@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> "TGMediaPickerGalleryVideoTrimView.h"
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import "TGMediaPickerGalleryVideoTrimView.h"
 
 #import "LegacyComponentsInternal.h"
 

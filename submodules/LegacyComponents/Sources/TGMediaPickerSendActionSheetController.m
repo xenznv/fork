@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGMediaPickerSendActionSheetController.h>
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import <LegacyComponents/TGMediaPickerSendActionSheetController.h>
 #import "LegacyComponentsInternal.h"
 
 #import <LegacyComponents/TGFont.h>

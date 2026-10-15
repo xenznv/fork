@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGToolbarButton.h>
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import <LegacyComponents/TGToolbarButton.h>
 
 #import "LegacyComponentsInternal.h"
 #import <LegacyComponents/TGImageUtils.h>

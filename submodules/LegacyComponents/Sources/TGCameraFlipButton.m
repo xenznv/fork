@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> <LegacyComponents/TGCameraFlipButton.h>
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import <LegacyComponents/TGCameraFlipButton.h>
 
 #import <LegacyComponents/TGCameraInterfaceAssets.h>
 #import "LegacyComponentsInternal.h"

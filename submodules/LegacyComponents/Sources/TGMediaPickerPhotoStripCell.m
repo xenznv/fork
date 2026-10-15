@@ -1,5 +1,5 @@
-#import
-#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h> "TGMediaPickerPhotoStripCell.h"
+#import <UIKitRuntimeUtils/UIButton+LegacyAppearance.h>
+#import "TGMediaPickerPhotoStripCell.h"
 
 #import "LegacyComponentsInternal.h"
 #import <LegacyComponents/TGFont.h>
