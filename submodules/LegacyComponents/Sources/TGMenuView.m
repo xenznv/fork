@@ -509,17 +509,13 @@ static UIImage *pagerLeftButtonHighlightedImage() {
             titleInset.right = 9.0f;
         }
         
-        if (@available(iOS 15.0, *)) {
-            // titleEdgeInsets was deprecated in iOS 15.0 in favor of UIButton.Configuration;
-            // TGMenuButtonView does not use a configuration, so keep using the legacy path
-            // but silence the warning for this legacy call site.
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-            buttonView.titleEdgeInsets = titleInset;
-            #pragma clang diagnostic pop
-        } else {
-            buttonView.titleEdgeInsets = titleInset;
-        }
+        // titleEdgeInsets was deprecated in iOS 15.0 in favor of UIButton.Configuration;
+        // TGMenuButtonView does not use a configuration, so suppress the warning for this
+        // legacy call site (matches UIButton+LegacyAppearance.m pattern used elsewhere).
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        buttonView.titleEdgeInsets = titleInset;
+        #pragma clang diagnostic pop
     }
 }
 
