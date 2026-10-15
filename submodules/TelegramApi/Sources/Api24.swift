@@ -1318,6 +1318,23 @@ public extension Api {
                 serializeString(_data.url, buffer: buffer, boxed: false)
                 serializeInt64(_data.webpageId, buffer: buffer, boxed: false)
                 break
+            case .textButton(let _data):
+                if boxed {
+                    buffer.appendInt32(-1345872682)
+                }
+                serializeInt32(_data.flags, buffer: buffer, boxed: false)
+                _data.text.serialize(buffer, true)
+                _data.type.serialize(buffer, true)
+                if Int(_data.flags) & Int(1 << 0) != 0 {
+                    _data.style!.serialize(buffer, true)
+                }
+                break
+            case .textTonAddress(let _data):
+                if boxed {
+                    buffer.appendInt32(1020437354)
+                }
+                _data.text.serialize(buffer, true)
+                break
             }
         }
 
@@ -1382,27 +1399,10 @@ public extension Api {
             case .textUnderline(let _data):
                 return ("textUnderline", [("text", ConstructorParameterDescription(_data.text))])
             case .textButton(let _data):
-                if boxed {
-                    buffer.appendInt32(-1345872682)
-                }
-                serializeInt32(_data.flags, buffer: buffer, boxed: false)
-                _data.text.serialize(buffer, true)
-                _data.type.serialize(buffer, true)
-                if Int(_data.flags) & Int(1 << 0) != 0 {
-                    _data.style!.serialize(buffer, true)
-                }
-                break
-                        case .textTonAddress(let _data):
-                if boxed {
-                    buffer.appendInt32(1020437354)
-                }
-                _data.text.serialize(buffer, true)
-                break
-                        case .textButton(let _data):
                 return ("textButton", [("flags", ConstructorParameterDescription(_data.flags)), ("text", ConstructorParameterDescription(_data.text)), ("type", ConstructorParameterDescription(_data.type)), ("style", ConstructorParameterDescription(_data.style))])
-                        case .textTonAddress(let _data):
+            case .textTonAddress(let _data):
                 return ("textTonAddress", [("text", ConstructorParameterDescription(_data.text))])
-                        case .textUrl(let _data):
+            case .textUrl(let _data):
                 return ("textUrl", [("text", ConstructorParameterDescription(_data.text)), ("url", ConstructorParameterDescription(_data.url)), ("webpageId", ConstructorParameterDescription(_data.webpageId))])
             }
         }

@@ -1303,6 +1303,8 @@ public extension Api {
                 return ("pageBlockKicker", [("text", ConstructorParameterDescription(_data.text))])
             case .pageBlockList(let _data):
                 return ("pageBlockList", [("items", ConstructorParameterDescription(_data.items))])
+            case .pageBlockButtonRow(let _data):
+                return ("pageBlockButtonRow", [("flags", ConstructorParameterDescription(_data.flags)), ("buttons", ConstructorParameterDescription(_data.buttons))])
             case .pageBlockMap(let _data):
                 return ("pageBlockMap", [("geo", ConstructorParameterDescription(_data.geo)), ("zoom", ConstructorParameterDescription(_data.zoom)), ("w", ConstructorParameterDescription(_data.w)), ("h", ConstructorParameterDescription(_data.h)), ("caption", ConstructorParameterDescription(_data.caption))])
             case .pageBlockMath(let _data):
