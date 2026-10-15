@@ -59,7 +59,7 @@ final class MakeLottieInstanceTests: XCTestCase {
 
     func testSettingsSelectTheBackend() {
         let data = LottieBindingTestFixtures.solidRed()
-        XCTAssertTrue(self.make(data, .rlottie) is RLottieInstance)
+        XCTAssertTrue(self.make(data, .rlottie) is RLottieBinding.LottieInstance)
         XCTAssertTrue(self.make(data, .tlottie) is TLottieAnimation)
     }
 

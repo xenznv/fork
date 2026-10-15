@@ -52,7 +52,7 @@ public func makeLottieInstance(
     let instance: LottieInstance?
     switch settings.backend {
     case .rlottie:
-        instance = RLottieInstance(
+        instance = RLottieBinding.LottieInstance(
             data: data,
             fitzModifier: fitzModifier.rlottieValue,
             colorReplacements: colorReplacements,

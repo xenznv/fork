@@ -27,14 +27,17 @@ public protocol LottieInstance: AnyObject {
                      width: Int32, height: Int32, bytesPerRow: Int32)
 }
 
-extension RLottieInstance: LottieInstance {
+// The ObjC class is named `LottieInstance` (see RLottieBinding's header); the local
+// Swift protocol with the same name shadows it, so the class must be referenced
+// through its module.
+extension RLottieBinding.LottieInstance: LottieInstance {
 }
 
 extension TLottieAnimation: LottieInstance {
 }
 
 extension LottieFitzModifier {
-    var rlottieValue: RLottieFitzModifier {
+    var rlottieValue: RLottieBinding.LottieFitzModifier {
         switch self {
         case .none: return .none
         case .type12: return .type12
