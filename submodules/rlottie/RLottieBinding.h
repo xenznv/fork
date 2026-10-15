@@ -14,5 +14,5 @@ FOUNDATION_EXPORT double RLottieBindingVersionNumber;
 //! Project version string for RLottie.
 FOUNDATION_EXPORT const unsigned char RLottieBindingVersionString[];
 
-#import <RLottieBinding/RLottieInstance.h>
+#import <RLottieBinding/LottieInstance.h>
 
