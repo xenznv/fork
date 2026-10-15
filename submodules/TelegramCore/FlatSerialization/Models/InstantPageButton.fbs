@@ -56,7 +56,9 @@ table InstantPageButtonAction_SwitchInline {
 }
 
 table InstantPageButtonAction_OpenUserProfile {
-    peerId:long (id: 0, required);
+    // `required` is not legal on scalar fields in FlatBuffers; the writer always emits
+    // `peerId`, and the reader already guards presence of the whole table.
+    peerId:long (id: 0);
 }
 
 table InstantPageButtonAction_CopyText {
