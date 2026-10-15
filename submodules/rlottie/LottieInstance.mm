@@ -65,8 +65,9 @@
         height = MAX(1, height);
         
         _dimensions = CGSizeMake(width, height);
+        _duration = (double)_animation->duration();
         
-        if ((_frameRate > 360) || _animation->duration() > 9.0) {
+        if ((_frameRate > 360) || _duration > 9.0) {
             return nil;
         }
     }

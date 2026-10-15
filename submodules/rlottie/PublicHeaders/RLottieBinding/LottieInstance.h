@@ -18,6 +18,7 @@ typedef NS_ENUM(int32_t, LottieFitzModifier) {
 @property (nonatomic, readonly) int32_t frameCount;
 @property (nonatomic, readonly) int32_t frameRate;
 @property (nonatomic, readonly) CGSize dimensions;
+@property (nonatomic, readonly) double duration;
 
 - (instancetype _Nullable)initWithData:(NSData * _Nonnull)data fitzModifier:(LottieFitzModifier)fitzModifier colorReplacements:(NSDictionary * _Nullable)colorReplacements cacheKey:(NSString * _Nonnull)cacheKey;
 
