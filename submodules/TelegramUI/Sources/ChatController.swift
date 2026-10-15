@@ -5,6 +5,7 @@ import SwiftSignalKit
 import Display
 import AsyncDisplayKit
 import TelegramCore
+import CustomCore
 import SafariServices
 import MobileCoreServices
 import Intents

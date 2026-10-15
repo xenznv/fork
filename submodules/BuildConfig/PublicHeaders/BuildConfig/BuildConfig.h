@@ -21,6 +21,20 @@
 @property (nonatomic, readonly) bool isICloudEnabled;
 @property (nonatomic, readonly) bool isSiriEnabled;
 
+// Archive connection values embedded at build time (from build configuration
+// variables or the GitHub Actions secrets); empty strings when not configured.
++ (NSString * _Nonnull)customArchiveURL;
++ (NSString * _Nonnull)customArchiveToken;
+
+// Extension diagnostics: appends one structured record to the shared container and
+// returns the aggregated JSON report of the latest records.
++ (void)customRecordExtensionDiagnosticWithProcess:(NSString * _Nullable)process
+    stage:(NSString * _Nullable)stage
+    appGroupIdentifier:(NSString * _Nullable)appGroupIdentifier
+    sharedContainerPath:(NSString * _Nullable)sharedContainerPath
+    detail:(NSString * _Nullable)detail;
++ (NSString * _Nonnull)customExtensionDiagnosticsReport;
+
 + (DeviceSpecificEncryptionParameters * _Nonnull)deviceSpecificEncryptionParameters:(NSString * _Nonnull)rootPath baseAppBundleId:(NSString * _Nonnull)baseAppBundleId;
 - (NSData * _Nullable)bundleDataWithAppToken:(NSData * _Nullable)appToken tokenType:(NSString * _Nullable)tokenType tokenEnvironment:(NSString * _Nullable)tokenEnvironment signatureDict:(NSDictionary * _Nullable)signatureDict;
 
