@@ -1,4 +1,4 @@
-include "RichText.fbs";
+include "InstantPageButtonAction.fbs";
 
 namespace TelegramCore;
 

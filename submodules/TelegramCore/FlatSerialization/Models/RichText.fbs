@@ -181,43 +181,6 @@ table RichText_TextButton {
 // The union has exactly the 10 ReplyMarkupButtonAction cases reachable from Api.InlineButtonType.
 // text / requestPhone / requestMap / setupPoll / requestPeer come only from Api.ButtonType and
 // cannot occur on a page button.
-union InstantPageButtonAction_Value {
-    InstantPageButtonAction_Url,
-    InstantPageButtonAction_UrlAuth,
-    InstantPageButtonAction_OpenWebView,
-    InstantPageButtonAction_Callback,
-    InstantPageButtonAction_OpenWebApp,
-    InstantPageButtonAction_Payment,
-    InstantPageButtonAction_SwitchInline,
-    InstantPageButtonAction_OpenUserProfile,
-    InstantPageButtonAction_CopyText,
-    InstantPageButtonAction_Disabled
-}
-
-table InstantPageButtonAction {
-    value:InstantPageButtonAction_Value (id: 1, required);
-}
-
-table InstantPageButtonAction_Url {
-    url:string (id: 0, required);
-}
-
-table InstantPageButtonAction_UrlAuth {
-    url:string (id: 0, required);
-    buttonId:int (id: 1);
-}
-
-table InstantPageButtonAction_OpenWebView {
-    url:string (id: 0, required);
-    simple:bool (id: 1);
-}
-
-table InstantPageButtonAction_Callback {
-    data:[ubyte] (id: 0, required);
-    requiresPassword:bool (id: 1);
-}
-
-table InstantPageButtonAction_OpenWebApp {}
 
 table InstantPageButtonAction_Payment {}
 
