@@ -1,5 +1,6 @@
 #if canImport(UIKit)
 import UIKit
+import RichTextEditorCore
 
 /// Host-settable colors for the editor. Set via `RichTextEditorView.theme`; applied at render time only and
 /// never written into the `Document` model. `default` reproduces the editor's prior hardcoded colors, so the
@@ -51,6 +52,19 @@ public struct RichTextEditorTheme {
     /// Quote AUTHOR (attribution) line placeholder ("Add author") color. Defaults to `placeholder` until a
     /// host sets a distinct value.
     public var quoteAuthorPlaceholder: UIColor
+    /// A code block's language-line text colour. Defaults to `containerPlaceholder` — the colour the
+    /// display-only language label already used — so making the line editable changes nothing visually.
+    public var codeLanguageText: UIColor
+    /// The "Language" placeholder colour on an EMPTY language line. Mirrors `quoteAuthorPlaceholder`.
+    public var codeLanguagePlaceholder: UIColor
+    /// Fill of a default-coloured (neutral) button pill. Mirrors `instantPageButtonColors`' `.none` arm.
+    public var buttonNeutralFill: UIColor
+    /// Label colour of a default-coloured button pill. Defaults to `accent`.
+    public var buttonNeutralLabel: UIColor
+    /// The `danger` pill's LABEL colour; its fill is this at 15% alpha, matching the renderer.
+    public var buttonDanger: UIColor
+    /// The `success` pill's LABEL colour; its fill is this at 15% alpha, matching the renderer.
+    public var buttonSuccess: UIColor
 
     public init(
         primaryText: UIColor,
@@ -68,9 +82,15 @@ public struct RichTextEditorTheme {
         shadowCursor: UIColor = UIColor(white: 0.7, alpha: 1.0),
         quoteAuthorText: UIColor? = nil,
         quoteAuthorPlaceholder: UIColor? = nil,
+        codeLanguageText: UIColor? = nil,
+        codeLanguagePlaceholder: UIColor? = nil,
         misspellingUnderline: UIColor = .systemRed,
         grammarUnderline: UIColor = .systemGreen,
-        correctionUnderline: UIColor = UIColor(red: 153.0/255.0, green: 172.0/255.0, blue: 235.0/255.0, alpha: 1.0)
+        correctionUnderline: UIColor = UIColor(red: 153.0/255.0, green: 172.0/255.0, blue: 235.0/255.0, alpha: 1.0),
+        buttonNeutralFill: UIColor = UIColor(white: 0.5, alpha: 0.12),
+        buttonNeutralLabel: UIColor? = nil,
+        buttonDanger: UIColor = .systemRed,
+        buttonSuccess: UIColor = .systemGreen
     ) {
         self.primaryText = primaryText
         self.secondaryText = secondaryText
@@ -87,9 +107,45 @@ public struct RichTextEditorTheme {
         self.shadowCursor = shadowCursor
         self.quoteAuthorText = quoteAuthorText ?? secondaryText
         self.quoteAuthorPlaceholder = quoteAuthorPlaceholder ?? placeholder
+        self.codeLanguageText = codeLanguageText ?? containerPlaceholder
+        self.codeLanguagePlaceholder = codeLanguagePlaceholder ?? placeholder
         self.misspellingUnderline = misspellingUnderline
         self.grammarUnderline = grammarUnderline
         self.correctionUnderline = correctionUnderline
+        self.buttonNeutralFill = buttonNeutralFill
+        self.buttonNeutralLabel = buttonNeutralLabel ?? accent
+        self.buttonDanger = buttonDanger
+        self.buttonSuccess = buttonSuccess
+    }
+
+    /// A pill's (fill, label) pair. Mirrors `instantPageButtonColors` — including the 15% fill alpha for
+    /// danger/success and the 40% label alpha when disabled. Lives here rather than at each draw site so
+    /// the inline pill and the block row cannot derive different colours for the same button.
+    /// `isLink` is the schema's `richButtonStyle.link` bit. A link-styled ROW pill is chrome-less — no
+    /// fill, accent label — mirroring `instantPageButtonColors`, which gives it the page's link colour.
+    /// It wins over the colour bits, matching the renderer's `link > primary > danger > success`
+    /// precedence, which is why `color` is still carried but not read here.
+    func resolvedButtonColors(color: ButtonColor?, isDisabled: Bool, isLink: Bool = false) -> (fill: UIColor, label: UIColor) {
+        if isLink {
+            return (.clear, isDisabled ? self.accent.withAlphaComponent(0.4) : self.accent)
+        }
+        let fill: UIColor
+        let label: UIColor
+        switch color {
+        case .none:
+            fill = self.buttonNeutralFill
+            label = self.buttonNeutralLabel
+        case .some(.primary):
+            fill = self.accent
+            label = .white
+        case .some(.danger):
+            fill = self.buttonDanger.withAlphaComponent(0.15)
+            label = self.buttonDanger
+        case .some(.success):
+            fill = self.buttonSuccess.withAlphaComponent(0.15)
+            label = self.buttonSuccess
+        }
+        return isDisabled ? (fill, label.withAlphaComponent(0.4)) : (fill, label)
     }
 
     /// Reproduces the editor's prior hardcoded colors exactly (see the design doc's site inventory).
@@ -113,33 +169,5 @@ public struct RichTextEditorTheme {
         spoilerDust: .secondaryLabel,
         containerPlaceholder: .placeholderText
     )
-
-    /// Resolves a button's fill + label colors from its color role, disabled state, and link flag.
-    /// Mirrors `instantPageResolvedButtonColors` in the V2 renderer.
-    public func resolvedButtonColors(color: ButtonColor?, isDisabled: Bool, isLink: Bool = false) -> (fill: UIColor, label: UIColor) {
-        if isDisabled {
-            let base = color == .danger ? UIColor(white: 0.6, alpha: 1.0) : (isLink ? UIColor(white: 0.87, alpha: 1.0) : UIColor(white: 0.73, alpha: 1.0))
-            return (fill: base, label: base.withAlphaComponent(0.4))
-        }
-        switch color {
-        case .none, .some(.primary):
-            return (fill: .systemBackground, label: .label)
-        case .some(.danger):
-            return (fill: UIColor(red: 0.95, green: 0.22, blue: 0.27, alpha: 1.0), label: .white)
-        case .some(.success):
-            return (fill: UIColor(red: 0.20, green: 0.69, blue: 0.30, alpha: 1.0), label: .white)
-        case .some(.link):
-            return (fill: .clear, label: accent)
-        }
-    }
-}
-
-extension RichTextEditorTheme {
-    /// Button-label color for an inline pill, where the only options are neutral or clear link accent.
-    /// Mirrors the V2 renderer's inline path (there is no disabled inline pill).
-    public func resolvedInlineButtonColors(color: ButtonColor?, isLink: Bool) -> UIColor {
-        if isLink { return accent }
-        return color == .danger ? UIColor(red: 0.90, green: 0.18, blue: 0.18, alpha: 1.0) : .label
-    }
 }
 #endif

@@ -11,7 +11,6 @@ public indirect enum DocNode: Equatable {
     case row(id: BlockID, children: [DocNode])            // children: cells
     case cell(id: BlockID, children: [DocNode])           // children: cell blocks
     case blockQuote(id: BlockID, children: [DocNode])     // recursive container (Σchildren + 2)
-    case buttonRow(id: BlockID)                           // leaf atom row (off the text axis)
     case details(id: BlockID, children: [DocNode])        // recursive container (Σchildren + 2)
 
     public var children: [DocNode] {
@@ -20,14 +19,14 @@ public indirect enum DocNode: Equatable {
              .table(_, let c), .row(_, let c), .cell(_, let c),
              .blockQuote(_, let c), .details(_, let c):
             return c
-        case .text, .mediaAtom, .buttonRow:
+        case .text, .mediaAtom:
             return []
         }
     }
 
     public var isLeaf: Bool {
         switch self {
-        case .text, .mediaAtom, .buttonRow: return true
+        case .text, .mediaAtom: return true
         default: return false
         }
     }
@@ -36,7 +35,7 @@ public indirect enum DocNode: Equatable {
     public var nodeSize: Int {
         switch self {
         case .text(let length, _): return length
-        case .mediaAtom, .buttonRow: return 1
+        case .mediaAtom: return 1
         case .doc(let c): return c.reduce(0) { $0 + $1.nodeSize }        // doc: no +2
         case .paragraph(_, let c), .mediaBlock(_, let c), .table(_, let c),
              .row(_, let c), .cell(_, let c), .blockQuote(_, let c), .details(_, let c):

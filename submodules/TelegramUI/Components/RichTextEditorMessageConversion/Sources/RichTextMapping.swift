@@ -2,25 +2,21 @@ import Foundation
 import TelegramCore
 import RichTextEditorCore
 
-/// A pill is an ATOM in the instant-page layout: its label lives inside the button, so the carrying
-/// run's text (a single U+FFFC placeholder) is dropped and the whole run becomes a `RichText.textButton`.
-func instantPageButton(from ref: ButtonRef) -> InstantPageButton {
-    InstantPageButton(
-        text: richText(from: ref.label),
-        action: replyMarkupButtonAction(from: ref.action),
-        color: ref.color.map(replyMarkupColor(from:)),
-        isLink: ref.isLink
-    )
-}
-
 /// Map a single text run to inline `RichText`, applying its character attributes as nested wrappers.
 func richText(from run: TextRun) -> RichText? {
     let attributes = run.attributes
-    if let button = attributes.button {
-        return .textButton(instantPageButton(from: button))
-    }
     var result: RichText
-    if let formula = attributes.formula {
+    // FIRST, before every other leaf: a button run's text is a bare `U+FFFC`, so without this arm it
+    // falls through to `.plain(run.text)` and the pill is emitted as an invisible placeholder. This is
+    // an if-let chain, not an exhaustive switch, so the compiler cannot catch a missing arm here.
+    if let button = attributes.button {
+        result = .textButton(InstantPageButton(
+            text: richText(from: button.label),
+            action: replyMarkupButtonAction(from: button.action),
+            color: replyMarkupColor(from: button.color),
+            isLink: button.isLink
+        ))
+    } else if let formula = attributes.formula {
         result = .formula(latex: formula)
     } else if let emoji = attributes.emoji {
         // v1: custom emoji has no backing file here — emit its alt text as plain text.
