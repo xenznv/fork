@@ -65,6 +65,8 @@ extension RichText {
             self = .textAutoUrl(text: RichText(apiText: textAutoUrlData.text))
         case let .textBankCard(textBankCardData):
             self = .textBankCard(text: RichText(apiText: textBankCardData.text))
+        case let .textTonAddress(data):
+            self = .textTonAddress(text: RichText(apiText: data.text))
         case let .textBotCommand(textBotCommandData):
             self = .textBotCommand(text: RichText(apiText: textBotCommandData.text))
         case let .textCashtag(textCashtagData):
@@ -82,21 +84,16 @@ extension RichText {
             self = .textSpoiler(text: RichText(apiText: textSpoilerData.text))
         case .textDiff:
             self = .empty
-        case let .textTonAddress(textTonAddressData):
-            self = .textTonAddress(text: RichText(apiText: textTonAddressData.text))
-        case let .textButton(textButtonData):
-            // `textButton` and `pageButton` carry identical fields (`text`, `type`, `style`), so the
-            // button conversion goes through the shared `InstantPageButton(apiButton:)`.
-            let pageButton = Api.PageButton.pageButton(Api.PageButton.Cons_pageButton(
-                flags: textButtonData.flags,
-                text: textButtonData.text,
-                type: textButtonData.type,
-                style: textButtonData.style
+        case let .textButton(data):
+            self = .textButton(InstantPageButton(
+                text: RichText(apiText: data.text),
+                action: ReplyMarkupButtonAction.from(apiType: data.type).action,
+                color: data.style.flatMap(ReplyMarkupButton.Style.Color.init(apiRichStyle:)),
+                isLink: InstantPageButton.isLinkStyle(data.style)
             ))
-            self = .textButton(InstantPageButton(apiButton: pageButton))
         }
     }
-    
+
     func apiRichText() -> Api.RichText {
         switch self {
         case .empty:
@@ -143,6 +140,8 @@ extension RichText {
             return .textAutoUrl(Api.RichText.Cons_textAutoUrl(text: text.apiRichText()))
         case let .textBankCard(text):
             return .textBankCard(Api.RichText.Cons_textBankCard(text: text.apiRichText()))
+        case let .textTonAddress(text):
+            return .textTonAddress(Api.RichText.Cons_textTonAddress(text: text.apiRichText()))
         case let .textBotCommand(text):
             return .textBotCommand(Api.RichText.Cons_textBotCommand(text: text.apiRichText()))
         case let .textCashtag(text):
@@ -157,20 +156,14 @@ extension RichText {
             return .textSpoiler(Api.RichText.Cons_textSpoiler(text: text.apiRichText()))
         case let .textDate(text, date, format):
             return .textDate(Api.RichText.Cons_textDate(flags: format?.rawValue ?? 0, text: text.apiRichText(), date: date))
-        case let .textTonAddress(text):
-            return .textTonAddress(Api.RichText.Cons_textTonAddress(text: text.apiRichText()))
         case let .textButton(button):
-            // Page buttons serialize over the wire as `pageButton`; `textButton` in chat text must
-            // round-trip through here losing nothing.
-            switch button.apiPageButton() {
-            case let .pageButton(pageButtonData):
-                return .textButton(Api.RichText.Cons_textButton(
-                    flags: pageButtonData.flags,
-                    text: pageButtonData.text,
-                    type: pageButtonData.type,
-                    style: pageButtonData.style
-                ))
-            }
+            let (flags, style) = button.apiFlagsAndStyle()
+            return .textButton(Api.RichText.Cons_textButton(
+                flags: flags,
+                text: button.text.apiRichText(),
+                type: button.action.apiInlineButtonType(),
+                style: style
+            ))
         }
     }
 }

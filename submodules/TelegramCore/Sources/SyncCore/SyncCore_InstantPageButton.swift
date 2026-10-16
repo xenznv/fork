@@ -3,24 +3,6 @@ import Postbox
 import FlatBuffers
 import FlatSerialization
 
-/// Horizontal alignment of a page's button rows. Raw values are PERSISTED (both as the Postbox
-/// payload of `.buttonRow` blocks and, by the editor's own `ButtonRowAlignment`, in editor documents)
-/// and must stay in sync with `ButtonRowAlignment` in RichTextEditorCore.
-public enum InstantPageButtonRowAlignment: Int32, PostboxCoding {
-    case justify = 0
-    case left = 1
-    case center = 2
-    case right = 3
-
-    public init(decoder: PostboxDecoder) {
-        self.init(rawValue: decoder.decodeInt32ForKey("v", orElse: 0)) ?? .justify
-    }
-
-    public func encode(_ encoder: PostboxEncoder) {
-        encoder.encodeInt32(self.rawValue, forKey: "v")
-    }
-}
-
 /// An inline button inside an InstantPage — the shared model behind both `RichText.textButton` and
 /// `InstantPageBlock.buttonRow`. The schema gives `textButton` and `pageButton` identical shape
 /// (`text: RichText`, `type: InlineButtonType`, `style: flags.0?RichButtonStyle`), so one type

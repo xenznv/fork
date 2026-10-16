@@ -306,10 +306,126 @@ private func filterMessageAttributesForOutgoingMessage(_ attributes: [MessageAtt
     }
 }
 
+/// The attributes an outgoing message stores for the ones it was requested with. A media timer is
+/// requested as `AutoremoveTimeoutMessageAttribute`: a secret chat stores it as-is in place of the
+/// chat's own timer, any other chat stores it as `AutoclearTimeoutMessageAttribute` beside the chat's
+/// auto-delete period (`peerAutoremoveTimeout`).
+func outgoingMessageAttributes(requestedAttributes: [MessageAttribute], isSecretChat: Bool, peerAutoremoveTimeout: Int32?) -> [MessageAttribute] {
+    var peerAutoremoveTimeout = peerAutoremoveTimeout
+    var attributes: [MessageAttribute] = []
+    for attribute in filterMessageAttributesForOutgoingMessage(requestedAttributes) {
+        if let attribute = attribute as? AutoremoveTimeoutMessageAttribute {
+            if isSecretChat {
+                peerAutoremoveTimeout = nil
+                attributes.append(attribute)
+            } else {
+                attributes.append(AutoclearTimeoutMessageAttribute(timeout: attribute.timeout, countdownBeginTime: nil))
+            }
+        } else {
+            attributes.append(attribute)
+        }
+    }
+    if let peerAutoremoveTimeout = peerAutoremoveTimeout {
+        attributes.append(AutoremoveTimeoutMessageAttribute(timeout: peerAutoremoveTimeout, countdownBeginTime: nil))
+    }
+    return attributes
+}
+
+/// What a resent message requests in place of `attribute`, which the failed message stores in the
+/// form `outgoingMessageAttributes` produced; nil when it is not requested again.
+func resentMessageRequestedAttribute(_ attribute: MessageAttribute, isSecretChat: Bool) -> MessageAttribute? {
+    if attribute is PaidStarsMessageAttribute {
+        return nil
+    }
+    if let attribute = attribute as? AutoclearTimeoutMessageAttribute {
+        // The media timer of a cloud chat, which is requested in its autoremove form.
+        return AutoremoveTimeoutMessageAttribute(timeout: attribute.timeout, countdownBeginTime: nil)
+    }
+    if attribute is AutoremoveTimeoutMessageAttribute && !isSecretChat {
+        // The chat's auto-delete period, derived again when the message is enqueued. Requested, it
+        // would become a media timer.
+        return nil
+    }
+    return attribute
+}
+
+/// What a forward requests when the server cannot forward it and it is sent as a copy, a new message
+/// with the source's content: the source is not a cloud message, or the destination is a secret chat.
+/// The copy takes the source's content and the forward's own attributes, which say how and where it
+/// is sent. Nothing else the source stores is requested: its timer belongs to its chat and would
+/// become a media timer in a cloud chat or override a secret chat's own, and its paid stars, send-as
+/// peer and schedule are the source chat's. `hidesCaption` drops the formatting of a caption the
+/// forward hides.
+func forwardCopyRequestedAttributes(sourceAttributes: [MessageAttribute], forwardAttributes: [MessageAttribute], hidesCaption: Bool) -> [MessageAttribute] {
+    let contentAttributes = sourceAttributes.filter { attribute in
+        switch attribute {
+        case _ as TextEntitiesMessageAttribute:
+            return !hidesCaption
+        case _ as RichTextMessageAttribute:
+            return true
+        case _ as InlineBotMessageAttribute:
+            return true
+        case _ as OutgoingContentInfoMessageAttribute:
+            return true
+        case _ as ReplyMarkupMessageAttribute:
+            return true
+        case _ as OutgoingChatContextResultMessageAttribute:
+            return true
+        case _ as EmbeddedMediaStickersMessageAttribute:
+            return true
+        case _ as EmojiSearchQueryMessageAttribute:
+            return true
+        case _ as MediaSpoilerMessageAttribute:
+            return true
+        case _ as WebpagePreviewMessageAttribute:
+            return true
+        case _ as InvertMediaMessageAttribute:
+            return true
+        default:
+            return false
+        }
+    }
+    return contentAttributes + forwardAttributes
+}
+
+/// The attributes a forwarded message stores from the forward's request and from its source: one of
+/// each kind, the request's where both have one. A resent forward requests what the failed one
+/// stored, which already includes the source's; and the sender reads the last paid stars a message
+/// stores, which must be the destination's price rather than what the source was paid.
+func forwardedMessageAttributes(requestedAttributes: [MessageAttribute], sourceAttributes: [MessageAttribute], forwardedMessageIds: Set<MessageId>?) -> [MessageAttribute] {
+    let requested = filterMessageAttributesForForwardedMessage(requestedAttributes)
+    let requestedKinds = Set(requested.map { ObjectIdentifier(type(of: $0)) })
+    let source = filterMessageAttributesForForwardedMessage(sourceAttributes, forwardedMessageIds: forwardedMessageIds).filter { attribute in
+        return !requestedKinds.contains(ObjectIdentifier(type(of: attribute)))
+    }
+    return requested + source
+}
+
+/// The local grouping key of a forwarded message: an album stays one album, under a key of its own
+/// so it does not join the source's.
+func forwardGroupingKey(grouping: EnqueueMessageGrouping, sourceGroupingKey: Int64?, generatedKeys: inout [Int64: Int64]) -> Int64? {
+    switch grouping {
+    case .none:
+        return nil
+    case .auto:
+        guard let sourceGroupingKey = sourceGroupingKey else {
+            return nil
+        }
+        if let generatedKey = generatedKeys[sourceGroupingKey] {
+            return generatedKey
+        }
+        let generatedKey = Int64.random(in: Int64.min ... Int64.max)
+        generatedKeys[sourceGroupingKey] = generatedKey
+        return generatedKey
+    }
+}
+
 private func filterMessageAttributesForEphemeralOutgoingMessage(_ attributes: [MessageAttribute]) -> [MessageAttribute] {
     return attributes.filter { attribute in
         switch attribute {
         case _ as TextEntitiesMessageAttribute:
+            return true
+        case _ as RichTextMessageAttribute:
             return true
         case _ as EmbeddedMediaStickersMessageAttribute:
             return true
@@ -422,11 +538,14 @@ private func generateEphemeralOutgoingRandomId() -> Int64 {
     }
 }
 
-private func enqueueEphemeralOutgoingMessage(transaction: Transaction, account: Account, peerId: PeerId, transformedMedia: Bool, message: EnqueueMessage, botPeerId: PeerId) -> MessageId? {
+private func enqueueEphemeralOutgoingMessage(transaction: Transaction, account: Account, peerId: PeerId, transformedMedia: Bool, message: EnqueueMessage, botPeerId: PeerId, isWelcomeTemplate: Bool = false) -> MessageId? {
     guard case let .message(text, requestedAttributes, inlineStickers, mediaReference, threadId, replyToMessageId, _, _, correlationId, bubbleUpEmojiOrStickersets) = message else {
         return nil
     }
-    guard transaction.getPeer(peerId).flatMap(apiInputPeer) != nil, transaction.getPeer(botPeerId).flatMap(apiInputUser) != nil else {
+    guard transaction.getPeer(peerId).flatMap(apiInputPeer) != nil else {
+        return nil
+    }
+    if !isWelcomeTemplate && transaction.getPeer(botPeerId).flatMap(apiInputUser) == nil {
         return nil
     }
 
@@ -436,6 +555,9 @@ private func enqueueEphemeralOutgoingMessage(transaction: Transaction, account: 
 
     var flags = StoreMessageFlags()
     flags.insert(.Sending)
+    if isWelcomeTemplate {
+        flags.insert(.Incoming)
+    }
 
     let randomId = generateEphemeralOutgoingRandomId()
     var infoFlags = OutgoingMessageInfoFlags()
@@ -450,7 +572,7 @@ private func enqueueEphemeralOutgoingMessage(transaction: Transaction, account: 
 
     var attributes: [MessageAttribute] = filterMessageAttributesForEphemeralOutgoingMessage(requestedAttributes)
     attributes.append(OutgoingMessageInfoAttribute(uniqueId: randomId, flags: infoFlags, acknowledged: false, correlationId: correlationId, bubbleUpEmojiOrStickersets: bubbleUpEmojiOrStickersets, partialReference: partialReference))
-    attributes.append(EphemeralOutgoingMessageAttribute(botPeerId: botPeerId, randomId: randomId, state: .sending))
+    attributes.append(EphemeralOutgoingMessageAttribute(botPeerId: botPeerId, randomId: randomId, state: .sending, isWelcomeTemplate: isWelcomeTemplate))
 
     if let replyAttribute = replyMessageAttributeForEphemeralOutgoingMessage(transaction: transaction, peerId: peerId, replySubject: replyToMessageId) {
         attributes.append(replyAttribute)
@@ -467,9 +589,12 @@ private func enqueueEphemeralOutgoingMessage(transaction: Transaction, account: 
         }
     }
 
-    let localId = generateEphemeralLocalMessageId(peerId: peerId, transaction: transaction)
-    let timestamp = Int32(account.network.context.globalTime())
-    let storeMessage = StoreMessage(id: localId, customStableId: nil, globallyUniqueId: randomId, groupingKey: nil, threadId: threadId, timestamp: timestamp, flags: flags, tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: account.peerId, text: text, attributes: attributes, media: mediaList)
+    let localId = generateEphemeralLocalMessageId(peerId: peerId, transaction: transaction, namespace: isWelcomeTemplate ? Namespaces.Message.WelcomeMessageLocal : Namespaces.Message.EphemeralLocal)
+    var timestamp = Int32(account.network.context.globalTime())
+    if isWelcomeTemplate {
+        timestamp += 1
+    }
+    let storeMessage = StoreMessage(id: localId, customStableId: nil, globallyUniqueId: randomId, groupingKey: nil, threadId: threadId, timestamp: timestamp, flags: flags, tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: isWelcomeTemplate ? peerId : account.peerId, text: text, attributes: attributes, media: mediaList)
     let _ = transaction.addMessages([storeMessage], location: .Random)
 
     return localId
@@ -522,1115 +647,13 @@ func opportunisticallyTransformMessageWithMedia(network: Network, postbox: Postb
 
 private func forwardedMessageToBeReuploaded(transaction: Transaction, id: MessageId) -> Message? {
     if let message = transaction.getMessage(id) {
-        if message.id.namespace != Namespaces.Message.Cloud {
+        if message.id.namespace != Namespaces.Message.Cloud && !Namespaces.Message.allEphemeral.contains(message.id.namespace) {
             return message
         } else {
             return nil
         }
     } else {
         return nil
-    }
-}
-
-// Deferred deleted-reply materialization. Composer/reply preview stay stock;
-// only the public enqueue boundary converts a locally retained deleted reply.
-private let customDeletedPortableRepliesKey =
-    "custom.Messages.DeletedPortableReplies"
-private let customSaveDeletedKey =
-    "custom.Messages.SaveDeleted"
-private let customPreserveDeletedMediaKey =
-    "custom.Messages.PreserveDeletedMedia"
-private let customDeletedMediaCacheLimitKey =
-    "custom.Messages.DeletedMediaCacheLimit"
-private let customDeletedMediaRetentionDaysKey =
-    "custom.Messages.DeletedMediaRetentionDays"
-
-private func customDeletedBool(
-    _ key: String,
-    defaultValue: Bool
-) -> Bool {
-    if let value = UserDefaults.standard.object(forKey: key) as? Bool {
-        return value
-    }
-    return defaultValue
-}
-
-private enum CustomPublicPeerNameStore {
-    private static let valuesKey = "custom.PublicPeerNames.V11T"
-    private static let orderKey = "custom.PublicPeerNamesOrder.V11T"
-    private static let maximumCount = 256
-    private static let lock = NSLock()
-
-    static func store(
-        peerId: PeerId,
-        firstName: String,
-        lastName: String
-    ) {
-        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
-        guard !name.isEmpty else {
-            return
-        }
-
-        self.lock.lock()
-        defer { self.lock.unlock() }
-
-        let defaults = UserDefaults.standard
-        var values = defaults.dictionary(
-            forKey: self.valuesKey
-        ) as? [String: String] ?? [:]
-        var order = defaults.stringArray(forKey: self.orderKey) ?? []
-        let key = String(peerId.toInt64())
-        values[key] = name
-        order.removeAll(where: { $0 == key })
-        order.append(key)
-
-        while order.count > self.maximumCount {
-            let removed = order.removeFirst()
-            values.removeValue(forKey: removed)
-        }
-        defaults.set(values, forKey: self.valuesKey)
-        defaults.set(order, forKey: self.orderKey)
-    }
-
-    static func name(peerId: PeerId) -> String? {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return (
-            UserDefaults.standard.dictionary(forKey: self.valuesKey)
-            as? [String: String]
-        )?[String(peerId.toInt64())]
-    }
-}
-
-func customStorePublicPeerName(
-    peerId: PeerId,
-    firstName: String,
-    lastName: String
-) {
-    CustomPublicPeerNameStore.store(
-        peerId: peerId,
-        firstName: firstName,
-        lastName: lastName
-    )
-}
-
-private struct CustomDeletedMediaResourceSpec {
-    let resource: MediaResource
-    let pathExtension: String?
-}
-
-private enum CustomDeletedMediaCache {
-    private static let queue = DispatchQueue(
-        label: "org.custom.deleted-media-cache",
-        qos: .utility
-    )
-    private static let cleanupLock = NSLock()
-    private static var lastCleanupTimestamp: TimeInterval = 0.0
-
-    static func root(mediaBox: MediaBox) -> URL {
-        return URL(fileURLWithPath: mediaBox.basePath, isDirectory: true)
-            .appendingPathComponent(
-                "custom-deleted-media",
-                isDirectory: true
-            )
-    }
-
-    private static func safe(_ value: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(
-            CharacterSet(charactersIn: "-_.")
-        )
-        let result = value.components(separatedBy: allowed.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "_")
-        return result.isEmpty ? "resource" : result
-    }
-
-    private static func messageDirectory(
-        mediaBox: MediaBox,
-        messageId: MessageId
-    ) -> URL {
-        let folder = "\(messageId.peerId.toInt64())_\(messageId.namespace)_\(messageId.id)"
-        return self.root(mediaBox: mediaBox).appendingPathComponent(
-            self.safe(folder),
-            isDirectory: true
-        )
-    }
-
-    static func spec(media: Media) -> CustomDeletedMediaResourceSpec? {
-        if let image = media as? TelegramMediaImage,
-           let largest = largestImageRepresentation(image.representations) {
-            return CustomDeletedMediaResourceSpec(
-                resource: largest.resource,
-                pathExtension: "jpg"
-            )
-        }
-
-        if let file = media as? TelegramMediaFile {
-            var ext: String?
-            if let fileName = file.fileName {
-                let value = (fileName as NSString).pathExtension
-                if !value.isEmpty {
-                    ext = value
-                }
-            }
-            if ext == nil {
-                switch file.mimeType.lowercased() {
-                case "video/mp4":
-                    ext = "mp4"
-                case "video/webm":
-                    ext = "webm"
-                case "application/x-tgsticker":
-                    ext = "tgs"
-                case "image/webp":
-                    ext = "webp"
-                case "audio/ogg", "audio/opus":
-                    ext = "ogg"
-                case "audio/mpeg":
-                    ext = "mp3"
-                case "image/gif":
-                    ext = "gif"
-                default:
-                    break
-                }
-            }
-            return CustomDeletedMediaResourceSpec(
-                resource: file.resource,
-                pathExtension: ext
-            )
-        }
-        return nil
-    }
-
-    private static func fileURL(
-        mediaBox: MediaBox,
-        messageId: MessageId,
-        spec: CustomDeletedMediaResourceSpec
-    ) -> URL {
-        var name = self.safe(spec.resource.id.stringRepresentation)
-        if let ext = spec.pathExtension, !ext.isEmpty {
-            name += "." + self.safe(ext)
-        } else {
-            name += ".bin"
-        }
-        return self.messageDirectory(
-            mediaBox: mediaBox,
-            messageId: messageId
-        ).appendingPathComponent(name)
-    }
-
-    private static func validFile(at url: URL) -> Bool {
-        guard let attributes = try? FileManager.default.attributesOfItem(
-            atPath: url.path
-        ),
-        let size = attributes[.size] as? NSNumber else {
-            return false
-        }
-        return size.int64Value > 0
-    }
-
-    private static func copyCompleteResource(
-        mediaBox: MediaBox,
-        messageId: MessageId,
-        spec: CustomDeletedMediaResourceSpec
-    ) -> String? {
-        let destination = self.fileURL(
-            mediaBox: mediaBox,
-            messageId: messageId,
-            spec: spec
-        )
-        let fm = FileManager.default
-
-        if self.validFile(at: destination) {
-            try? fm.setAttributes(
-                [.modificationDate: Date()],
-                ofItemAtPath: destination.path
-            )
-            return destination.path
-        }
-
-        guard let sourcePath = mediaBox.completedResourcePath(spec.resource),
-              self.validFile(at: URL(fileURLWithPath: sourcePath)) else {
-            return nil
-        }
-
-        do {
-            try fm.createDirectory(
-                at: destination.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if fm.fileExists(atPath: destination.path) {
-                try fm.removeItem(at: destination)
-            }
-            try fm.copyItem(
-                at: URL(fileURLWithPath: sourcePath),
-                to: destination
-            )
-            guard self.validFile(at: destination) else {
-                try? fm.removeItem(at: destination)
-                return nil
-            }
-            return destination.path
-        } catch {
-            return nil
-        }
-    }
-
-    static func resolvePath(
-        mediaBox: MediaBox,
-        messageId: MessageId,
-        media: Media
-    ) -> String? {
-        guard let spec = self.spec(media: media) else {
-            return nil
-        }
-        let path = self.copyCompleteResource(
-            mediaBox: mediaBox,
-            messageId: messageId,
-            spec: spec
-        )
-        self.cleanupIfNeeded(mediaBox: mediaBox)
-        return path
-    }
-
-    static func preserve(
-        mediaBox: MediaBox,
-        message: Message
-    ) {
-        guard customDeletedBool(
-            customPreserveDeletedMediaKey,
-            defaultValue: true
-        ) else {
-            return
-        }
-
-        let messageId = message.id
-        let specs = message.media.compactMap { self.spec(media: $0) }
-        guard !specs.isEmpty else {
-            return
-        }
-
-        self.queue.async {
-            for spec in specs {
-                _ = self.copyCompleteResource(
-                    mediaBox: mediaBox,
-                    messageId: messageId,
-                    spec: spec
-                )
-            }
-            self.cleanupIfNeeded(mediaBox: mediaBox)
-        }
-    }
-
-    static func remove(
-        mediaBox: MediaBox,
-        messageIds: [MessageId]
-    ) {
-        guard !messageIds.isEmpty else {
-            return
-        }
-        self.queue.async {
-            let fm = FileManager.default
-            for id in messageIds {
-                try? fm.removeItem(
-                    at: self.messageDirectory(
-                        mediaBox: mediaBox,
-                        messageId: id
-                    )
-                )
-            }
-        }
-    }
-
-    private static func cleanupIfNeeded(mediaBox: MediaBox) {
-        let now = Date().timeIntervalSince1970
-        self.cleanupLock.lock()
-        if now - self.lastCleanupTimestamp < 300.0 {
-            self.cleanupLock.unlock()
-            return
-        }
-        self.lastCleanupTimestamp = now
-        self.cleanupLock.unlock()
-
-        let defaults = UserDefaults.standard
-        let retentionDays = (
-            defaults.object(forKey: customDeletedMediaRetentionDaysKey)
-            as? NSNumber
-        )?.intValue ?? 30
-        let limitBytes = (
-            defaults.object(forKey: customDeletedMediaCacheLimitKey)
-            as? NSNumber
-        )?.int64Value ?? (1024 * 1024 * 1024)
-
-        let root = self.root(mediaBox: mediaBox)
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(
-            at: root,
-            includingPropertiesForKeys: [
-                .isRegularFileKey,
-                .fileSizeKey,
-                .contentModificationDateKey,
-            ],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return
-        }
-
-        var files: [(URL, Int64, Date)] = []
-        let cutoff: Date? = retentionDays < 0
-            ? nil
-            : Date(timeIntervalSinceNow: -Double(retentionDays) * 86400.0)
-
-        for case let url as URL in enumerator {
-            guard let values = try? url.resourceValues(
-                forKeys: [
-                    .isRegularFileKey,
-                    .fileSizeKey,
-                    .contentModificationDateKey,
-                ]
-            ), values.isRegularFile == true else {
-                continue
-            }
-            let date = values.contentModificationDate ?? .distantPast
-            if let cutoff, date < cutoff {
-                try? fm.removeItem(at: url)
-                continue
-            }
-            files.append((url, Int64(values.fileSize ?? 0), date))
-        }
-
-        if limitBytes >= 0 {
-            var total = files.reduce(Int64(0)) { $0 + max(0, $1.1) }
-            if total > limitBytes {
-                for item in files.sorted(by: { $0.2 < $1.2 }) {
-                    if total <= limitBytes {
-                        break
-                    }
-                    try? fm.removeItem(at: item.0)
-                    total -= max(0, item.1)
-                }
-            }
-        }
-    }
-}
-
-func customScheduleDeletedMediaPreservation(
-    mediaBox: MediaBox,
-    message: Message
-) {
-    CustomDeletedMediaCache.preserve(
-        mediaBox: mediaBox,
-        message: message
-    )
-}
-
-func customRemoveDeletedMediaCacheEntries(
-    mediaBox: MediaBox,
-    messageIds: [MessageId]
-) {
-    CustomDeletedMediaCache.remove(
-        mediaBox: mediaBox,
-        messageIds: messageIds
-    )
-}
-
-private struct CustomDeletedReplyPlan {
-    let outgoing: EnqueueMessage
-    let source: Message?
-    let sourceGroup: [Message]
-    let authorName: String?
-    let authorUsername: String?
-    let mentionPeerId: PeerId?
-}
-
-private struct CustomDeletedQuoteBody {
-    let text: String
-    let originalTextOffset: Int?
-}
-
-private func customDeletedMediaLabel(_ message: Message) -> String? {
-    // TelegramCore cannot depend on presentation/UI localization.
-    // Portable recovery text therefore uses English canonical labels;
-    // richer UI localization uses semantic CustomStringKey values.
-    if message.groupingKey != nil && !message.media.isEmpty {
-        return "Album"
-    }
-
-    guard let media = message.media.first else {
-        return nil
-    }
-    if media is TelegramMediaPoll {
-        return "Poll"
-    }
-    if media is TelegramMediaMap {
-        return "📍 Location"
-    }
-    if media is TelegramMediaContact {
-        return "👤 Contact"
-    }
-    if media is TelegramMediaDice {
-        return "🎲 Dice"
-    }
-    if media is TelegramMediaTodo {
-        return "Task List"
-    }
-    if media is TelegramMediaImage {
-        return "📷 Photo"
-    }
-    if let file = media as? TelegramMediaFile {
-        if file.isSticker {
-            return "Sticker"
-        } else if file.isVoice {
-            return "🎙 Voice Message"
-        } else if file.isInstantVideo {
-            return "🎥 Video Message"
-        } else if file.isAnimated {
-            return "GIF"
-        } else if file.isVideo {
-            return "🎬 Video"
-        } else if file.isMusic {
-            return "🎵 Audio"
-        } else if let name = file.fileName, !name.isEmpty {
-            return "📎 File: \(name)"
-        } else {
-            return "📎 File"
-        }
-    }
-    return "Attachment"
-}
-
-private func customQuoteBody(
-    source: Message,
-    recoveredMedia: Bool
-) -> CustomDeletedQuoteBody {
-    let sourceText = source.text
-
-    if recoveredMedia || source.media.isEmpty {
-        return CustomDeletedQuoteBody(
-            text: sourceText,
-            originalTextOffset: sourceText.isEmpty ? nil : 0
-        )
-    }
-
-    let label = customDeletedMediaLabel(source) ?? "Deleted Message"
-    if sourceText.isEmpty {
-        return CustomDeletedQuoteBody(
-            text: label,
-            originalTextOffset: nil
-        )
-    }
-    let offset = (label as NSString).length + 1
-    return CustomDeletedQuoteBody(
-        text: label + "\n" + sourceText,
-        originalTextOffset: offset
-    )
-}
-
-private func customShiftEntities(
-    _ entities: [MessageTextEntity],
-    by offset: Int
-) -> [MessageTextEntity] {
-    guard offset != 0 else {
-        return entities
-    }
-    return entities.map { entity in
-        return MessageTextEntity(
-            range: (entity.range.lowerBound + offset)
-                ..< (entity.range.upperBound + offset),
-            type: entity.type
-        )
-    }
-}
-
-private func customOriginalPortableEntities(
-    source: Message
-) -> [MessageTextEntity] {
-    guard !source.text.isEmpty else {
-        return []
-    }
-
-    let liveEntities = (
-        source.attributes.first(where: { $0 is TextEntitiesMessageAttribute })
-        as? TextEntitiesMessageAttribute
-    )?.entities ?? []
-    let storedEntities = (
-        source.attributes.first(where: { $0 is CustomEditHistoryAttribute })
-        as? CustomEditHistoryAttribute
-    )?.originalEntities ?? []
-    let sourceEntities = liveEntities.isEmpty ? storedEntities : liveEntities
-
-    let length = (source.text as NSString).length
-    guard length > 0, !sourceEntities.isEmpty else {
-        return []
-    }
-
-    // Telegram's `onlyQuoteable` filter deliberately drops Url/TextUrl and
-    // TextMention. A portable deleted reply must reproduce the source text,
-    // not Telegram's reduced quote-format subset, so preserve every entity
-    // whose range belongs to the source text. The outer recovered quote owns
-    // its BlockQuote entity; nesting a source BlockQuote is the sole exclusion.
-    return messageTextEntitiesInRange(
-        entities: sourceEntities,
-        range: NSRange(location: 0, length: length),
-        onlyQuoteable: false
-    ).filter { entity in
-        if case .BlockQuote = entity.type {
-            return false
-        }
-        return true
-    }
-}
-
-private func customBuildPortableDeletedReply(
-    outgoing: EnqueueMessage,
-    source: Message,
-    authorName: String,
-    authorUsername: String?,
-    mentionPeerId: PeerId?,
-    recoveredMedia: AnyMediaReference?,
-    forcedLocalGroupingKey: Int64? = nil
-) -> EnqueueMessage {
-    guard case let .message(
-        userText,
-        requestedAttributes,
-        inlineStickers,
-        userMediaReference,
-        threadId,
-        _,
-        replyToStoryId,
-        localGroupingKey,
-        correlationId,
-        bubbleUpEmojiOrStickersets
-    ) = outgoing else {
-        return outgoing
-    }
-
-    let effectiveRecoveredMedia: AnyMediaReference? =
-        userMediaReference == nil ? recoveredMedia : nil
-    let body = customQuoteBody(
-        source: source,
-        recoveredMedia: effectiveRecoveredMedia != nil
-    )
-
-    var quoteText = authorName
-    let authorLength = (authorName as NSString).length
-    var originalTextStart: Int?
-    if !body.text.isEmpty {
-        quoteText += "\n" + body.text
-        if let inner = body.originalTextOffset {
-            originalTextStart = authorLength + 1 + inner
-        }
-    }
-
-    let separator = userText.isEmpty ? "" : "\n\n"
-    let finalText = quoteText + separator + userText
-    let quoteLength = (quoteText as NSString).length
-    let userOffset = ((quoteText + separator) as NSString).length
-
-    var entities: [MessageTextEntity] = []
-    if authorLength > 0 {
-        if let authorUsername,
-           !authorUsername.isEmpty {
-            entities.append(
-                MessageTextEntity(
-                    range: 0 ..< authorLength,
-                    type: .TextUrl(
-                        url: "tg://resolve?domain=\(authorUsername)"
-                    )
-                )
-            )
-        } else if let mentionPeerId {
-            entities.append(
-                MessageTextEntity(
-                    range: 0 ..< authorLength,
-                    type: .TextMention(
-                        peerId: mentionPeerId
-                    )
-                )
-            )
-        }
-
-        entities.append(
-            MessageTextEntity(
-                range: 0 ..< authorLength,
-                type: .Bold
-            )
-        )
-    }
-
-    let sourceLength = (source.text as NSString).length
-    let collapse = sourceLength > 320
-        || source.text.components(separatedBy: "\n").count > 4
-    if quoteLength > 0 {
-        entities.append(MessageTextEntity(
-            range: 0 ..< quoteLength,
-            type: .BlockQuote(isCollapsed: collapse)
-        ))
-    }
-
-    if let originalTextStart {
-        entities.append(contentsOf: customShiftEntities(
-            customOriginalPortableEntities(source: source),
-            by: originalTextStart
-        ))
-    }
-
-    var attributes: [MessageAttribute] = []
-    var userEntities: [MessageTextEntity] = []
-    for attribute in requestedAttributes {
-        if let textAttribute = attribute as? TextEntitiesMessageAttribute {
-            userEntities.append(contentsOf: textAttribute.entities)
-        } else if attribute is ReplyMessageAttribute {
-            continue
-        } else {
-            attributes.append(attribute)
-        }
-    }
-    entities.append(contentsOf: customShiftEntities(
-        userEntities,
-        by: userOffset
-    ))
-    if !entities.isEmpty {
-        attributes.append(TextEntitiesMessageAttribute(entities: entities))
-    }
-
-    return .message(
-        text: finalText,
-        attributes: attributes,
-        inlineStickers: inlineStickers,
-        mediaReference: userMediaReference ?? effectiveRecoveredMedia,
-        threadId: threadId,
-        replyToMessageId: nil,
-        replyToStoryId: replyToStoryId,
-        localGroupingKey: forcedLocalGroupingKey ?? localGroupingKey,
-        correlationId: correlationId,
-        bubbleUpEmojiOrStickersets: bubbleUpEmojiOrStickersets
-    )
-}
-
-private func customBuildRecoveredAlbumTail(
-    outgoing: EnqueueMessage,
-    recoveredMedia: AnyMediaReference,
-    localGroupingKey: Int64
-) -> EnqueueMessage {
-    guard case let .message(
-        _,
-        requestedAttributes,
-        _,
-        userMediaReference,
-        threadId,
-        _,
-        replyToStoryId,
-        _,
-        _,
-        _
-    ) = outgoing,
-    userMediaReference == nil else {
-        return outgoing
-    }
-
-    var attributes: [MessageAttribute] = []
-
-    for attribute in requestedAttributes {
-        if attribute is ReplyMessageAttribute
-            || attribute is TextEntitiesMessageAttribute {
-            continue
-        }
-
-        attributes.append(attribute)
-    }
-
-    return .message(
-        text: "",
-        attributes: attributes,
-        inlineStickers: [:],
-        mediaReference: recoveredMedia,
-        threadId: threadId,
-        replyToMessageId: nil,
-        replyToStoryId: replyToStoryId,
-        localGroupingKey: localGroupingKey,
-        correlationId: nil,
-        bubbleUpEmojiOrStickersets: []
-    )
-}
-
-
-private func customReconstructedMedia(
-    account: Account,
-    peerId: PeerId,
-    source: Message,
-    outgoing: EnqueueMessage
-) -> AnyMediaReference? {
-    guard customDeletedBool(
-        customPreserveDeletedMediaKey,
-        defaultValue: true
-    ) else {
-        return nil
-    }
-
-    guard peerId.namespace == Namespaces.Peer.CloudUser
-        || peerId.namespace == Namespaces.Peer.CloudGroup
-        || peerId.namespace == Namespaces.Peer.CloudChannel else {
-        return nil
-    }
-
-    guard source.media.count == 1 else {
-        return nil
-    }
-
-    guard case let .message(
-        _, attributes, _, userMedia, _, _, _, _, _, _
-    ) = outgoing,
-    userMedia == nil else {
-        return nil
-    }
-
-    if attributes.contains(where: {
-        $0 is OutgoingScheduleInfoMessageAttribute
-    }) {
-        return nil
-    }
-
-    let media = source.media[0]
-    // Preserve the original TelegramMediaFile mimeType + attributes and
-    // let the existing deleted-media reconstruction path rebuild it.
-    // The textual Sticker label remains only as the missing-media fallback.
-
-    guard let path = CustomDeletedMediaCache.resolvePath(
-        mediaBox: account.postbox.mediaBox,
-        messageId: source.id,
-        media: media
-    ) else {
-        return nil
-    }
-
-    let fm = FileManager.default
-    let fileSize = (
-        ((try? fm.attributesOfItem(atPath: path))?[.size] as? NSNumber)
-    )?.int64Value
-    guard (fileSize ?? 0) > 0 else {
-        return nil
-    }
-
-    let randomId = Int64.random(in: Int64.min ... Int64.max)
-    let localResource = LocalFileReferenceMediaResource(
-        localFilePath: path,
-        randomId: randomId,
-        isUniquelyReferencedTemporaryFile: false,
-        size: fileSize
-    )
-
-    if let file = media as? TelegramMediaFile {
-        let localFile = TelegramMediaFile(
-            fileId: MediaId(
-                namespace: Namespaces.Media.LocalFile,
-                id: randomId
-            ),
-            partialReference: nil,
-            resource: localResource,
-            previewRepresentations: [],
-            videoThumbnails: [],
-            videoCover: nil,
-            immediateThumbnailData: file.immediateThumbnailData,
-            mimeType: file.mimeType,
-            size: fileSize,
-            attributes: file.attributes,
-            alternativeRepresentations: []
-        )
-        return .standalone(media: localFile)
-    }
-
-    if let image = media as? TelegramMediaImage,
-       let largest = largestImageRepresentation(image.representations) {
-        let localRepresentation = TelegramMediaImageRepresentation(
-            dimensions: largest.dimensions,
-            resource: localResource,
-            progressiveSizes: [],
-            immediateThumbnailData: nil,
-            hasVideo: false,
-            isPersonal: false,
-            typeHint: .generic
-        )
-        let localImage = TelegramMediaImage(
-            imageId: MediaId(
-                namespace: Namespaces.Media.LocalImage,
-                id: randomId
-            ),
-            representations: [localRepresentation],
-            videoRepresentations: [],
-            immediateThumbnailData: image.immediateThumbnailData,
-            emojiMarkup: nil,
-            reference: nil,
-            partialReference: nil,
-            flags: [],
-            video: nil
-        )
-        return .standalone(media: localImage)
-    }
-
-    return nil
-}
-
-private func customResolveDeletedReplies(
-    account: Account,
-    peerId: PeerId,
-    messages: [EnqueueMessage]
-) -> Signal<[EnqueueMessage], NoError> {
-    guard customDeletedBool(
-        customSaveDeletedKey,
-        defaultValue: true
-    ), customDeletedBool(
-        customDeletedPortableRepliesKey,
-        defaultValue: true
-    ) else {
-        return .single(messages)
-    }
-
-    let customCloudDestination =
-        peerId.namespace == Namespaces.Peer.CloudUser
-        || peerId.namespace == Namespaces.Peer.CloudGroup
-        || peerId.namespace == Namespaces.Peer.CloudChannel
-
-    return account.postbox.transaction { transaction -> [CustomDeletedReplyPlan] in
-        return messages.map { outgoing in
-            guard case let .message(
-                _, _, _, _, _, replySubject, _, _, _, _
-            ) = outgoing,
-            let replySubject,
-            let source =
-                transaction.getMessage(
-                    replySubject.messageId
-                ),
-            let deletedAttribute =
-                source.attributes.first(
-                    where: {
-                        $0 is CustomEditHistoryAttribute
-                    }
-                ) as? CustomEditHistoryAttribute,
-            deletedAttribute.isDeleted else {
-
-                return CustomDeletedReplyPlan(
-                    outgoing: outgoing,
-                    source: nil,
-                    sourceGroup: [],
-                    authorName: nil,
-                    authorUsername: nil,
-                    mentionPeerId: nil
-                )
-            }
-
-            let sourceGroup: [Message]
-
-            if source.groupingKey != nil {
-                sourceGroup =
-                    transaction
-                        .getMessageGroup(source.id)
-                    ?? [source]
-            } else {
-                sourceGroup = [source]
-            }
-
-            let authorPeer = source.author
-            let authorName: String
-
-            if let authorPeer,
-               let stored =
-                    CustomPublicPeerNameStore
-                        .name(peerId: authorPeer.id),
-               !stored.isEmpty {
-                authorName = stored
-            } else if let authorPeer {
-                let title =
-                    EnginePeer(authorPeer)
-                        .debugDisplayTitle
-                authorName =
-                    title.isEmpty
-                    ? "User"
-                    : title
-            } else {
-                authorName = "User"
-            }
-
-            let authorUsername: String?
-
-            if let raw =
-                authorPeer?
-                    .addressName?
-                    .trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    ),
-               !raw.isEmpty {
-                authorUsername =
-                    raw.hasPrefix("@")
-                    ? String(raw.dropFirst())
-                    : raw
-            } else {
-                authorUsername = nil
-            }
-
-            var mentionPeerId: PeerId?
-
-            if customCloudDestination,
-               authorUsername == nil,
-               let authorPeer,
-               authorPeer.id.namespace
-                    == Namespaces.Peer.CloudUser,
-               apiInputUser(authorPeer) != nil {
-                mentionPeerId = authorPeer.id
-            }
-
-            return CustomDeletedReplyPlan(
-                outgoing: outgoing,
-                source: source,
-                sourceGroup: sourceGroup,
-                authorName: authorName,
-                authorUsername: authorUsername,
-                mentionPeerId: mentionPeerId
-            )
-        }
-    }
-    |> mapToSignal { plans -> Signal<[EnqueueMessage], NoError> in
-        return Signal { subscriber in
-            DispatchQueue.global(qos: .utility).async {
-                var result: [EnqueueMessage] = []
-                result.reserveCapacity(plans.count)
-
-                for plan in plans {
-                    guard
-                        let source = plan.source,
-                        let authorName = plan.authorName
-                    else {
-                        result.append(plan.outgoing)
-                        continue
-                    }
-
-                    let recoverySources =
-                        source.groupingKey != nil
-                        ? plan.sourceGroup
-                        : [source]
-
-                    var recoveredGroup: [AnyMediaReference] = []
-                    recoveredGroup.reserveCapacity(recoverySources.count)
-
-                    for groupSource in recoverySources {
-                        if let recovered =
-                            customReconstructedMedia(
-                                account: account,
-                                peerId: peerId,
-                                source: groupSource,
-                                outgoing: plan.outgoing
-                            ) {
-                            recoveredGroup.append(recovered)
-                        }
-                    }
-
-                    if source.groupingKey != nil,
-                       recoveredGroup.count >= 2 {
-
-                        let localGroupingKey =
-                            Int64.random(
-                                in: Int64.min ... Int64.max
-                            )
-
-                        var first =
-                            customBuildPortableDeletedReply(
-                                outgoing: plan.outgoing,
-                                source: source,
-                                authorName: authorName,
-                                authorUsername: plan.authorUsername,
-                                mentionPeerId: plan.mentionPeerId,
-                                recoveredMedia: recoveredGroup[0],
-                                forcedLocalGroupingKey: localGroupingKey
-                            )
-
-                        if case let .message(
-                            text, _, _, _, _, _, _, _, _, _
-                        ) = first,
-                        (text as NSString).length > 1024 {
-                            first =
-                                customBuildPortableDeletedReply(
-                                    outgoing: plan.outgoing,
-                                    source: source,
-                                    authorName: authorName,
-                                    authorUsername: plan.authorUsername,
-                                    mentionPeerId: plan.mentionPeerId,
-                                    recoveredMedia: nil
-                                )
-
-                            result.append(first)
-
-                            for recovered in recoveredGroup {
-                                result.append(
-                                    customBuildRecoveredAlbumTail(
-                                        outgoing: plan.outgoing,
-                                        recoveredMedia: recovered,
-                                        localGroupingKey: localGroupingKey
-                                    )
-                                )
-                            }
-                        } else {
-                            result.append(first)
-
-                            for recovered in recoveredGroup.dropFirst() {
-                                result.append(
-                                    customBuildRecoveredAlbumTail(
-                                        outgoing: plan.outgoing,
-                                        recoveredMedia: recovered,
-                                        localGroupingKey: localGroupingKey
-                                    )
-                                )
-                            }
-                        }
-
-                        continue
-                    }
-
-                    // A recovered sticker must stay inside the quoted source context;
-                    // attaching it as outgoing media sends a second sticker message.
-                    // Preserve the established photo/video/GIF/audio/document and album paths.
-                    let customStickerReply = source.media.contains { media in
-                        guard let file = media as? TelegramMediaFile else {
-                            return false
-                        }
-                        return file.isSticker
-                    }
-                    let recovered = customStickerReply ? nil : recoveredGroup.first
-
-                    var candidate =
-                        customBuildPortableDeletedReply(
-                            outgoing: plan.outgoing,
-                            source: source,
-                            authorName: authorName,
-                            authorUsername: plan.authorUsername,
-                            mentionPeerId: plan.mentionPeerId,
-                            recoveredMedia: recovered
-                        )
-
-                    if recovered != nil,
-                       case let .message(
-                            text, _, _, _, _, _, _, _, _, _
-                       ) = candidate,
-                       (text as NSString).length > 1024 {
-                        candidate =
-                            customBuildPortableDeletedReply(
-                                outgoing: plan.outgoing,
-                                source: source,
-                                authorName: authorName,
-                                authorUsername: plan.authorUsername,
-                                mentionPeerId: plan.mentionPeerId,
-                                recoveredMedia: nil
-                            )
-                    }
-
-                    result.append(candidate)
-                }
-
-                subscriber.putNext(result)
-                subscriber.putCompletion()
-            }
-            return EmptyDisposable
-        }
     }
 }
 
@@ -1671,7 +694,7 @@ private func opportunisticallyTransformOutgoingMedia(network: Network, postbox: 
     return combineLatest(signals)
 }
 
-private func customEnqueueResolvedMessages(account: Account, peerId: PeerId, messages: [EnqueueMessage]) -> Signal<[MessageId?], NoError> {
+public func enqueueMessages(account: Account, peerId: PeerId, messages: [EnqueueMessage]) -> Signal<[MessageId?], NoError> {
     let signal: Signal<[(Bool, EnqueueMessage)], NoError>
     if let transformOutgoingMessageMedia = account.transformOutgoingMessageMedia {
         signal = opportunisticallyTransformOutgoingMedia(network: account.network, postbox: account.postbox, transformOutgoingMessageMedia: transformOutgoingMessageMedia, messages: messages, userInteractive: true)
@@ -1717,25 +740,35 @@ private func customEnqueueResolvedMessages(account: Account, peerId: PeerId, mes
     }
 }
 
-public func enqueueMessages(
-    account: Account,
-    peerId: PeerId,
-    messages: [EnqueueMessage]
-) -> Signal<[MessageId?], NoError> {
-    return customResolveDeletedReplies(
-        account: account,
-        peerId: peerId,
-        messages: messages
-    )
-    |> mapToSignal { resolvedMessages in
-        return customEnqueueResolvedMessages(
-            account: account,
-            peerId: peerId,
-            messages: resolvedMessages
-        )
+public func enqueueWelcomeMessages(account: Account, peerId: PeerId, messages: [EnqueueMessage]) -> Signal<[MessageId?], NoError> {
+    let signal: Signal<[(Bool, EnqueueMessage)], NoError>
+    if let transformOutgoingMessageMedia = account.transformOutgoingMessageMedia {
+        signal = opportunisticallyTransformOutgoingMedia(network: account.network, postbox: account.postbox, transformOutgoingMessageMedia: transformOutgoingMessageMedia, messages: messages, userInteractive: true)
+    } else {
+        signal = .single(messages.map { (false, $0) })
+    }
+    return signal
+    |> mapToSignal { messages -> Signal<[MessageId?], NoError> in
+        return account.postbox.transaction { transaction -> ([MessageId?], [MessageId]) in
+            var resultIds = Array<MessageId?>(repeating: nil, count: messages.count)
+            var pendingMessageIds: [MessageId] = []
+            for i in 0 ..< messages.count {
+                let (transformedMedia, message) = messages[i]
+                if let messageId = enqueueEphemeralOutgoingMessage(transaction: transaction, account: account, peerId: peerId, transformedMedia: transformedMedia, message: message, botPeerId: peerId, isWelcomeTemplate: true) {
+                    resultIds[i] = messageId
+                    pendingMessageIds.append(messageId)
+                }
+            }
+            return (resultIds, pendingMessageIds)
+        }
+        |> map { resultIds, pendingMessageIds -> [MessageId?] in
+            for messageId in pendingMessageIds {
+                let _ = _internal_sendEphemeralOutgoingMessage(account: account, messageId: messageId).startStandalone()
+            }
+            return resultIds
+        }
     }
 }
-
 
 public func resendMessages(account: Account, messageIds: [MessageId]) -> Signal<Void, NoError> {
     return account.postbox.transaction { transaction -> Void in
@@ -1774,11 +807,8 @@ public func resendMessages(account: Account, messageIds: [MessageId]) -> Signal<
                             continue inner
                         } else if let attribute = attribute as? ForwardSourceInfoAttribute {
                             forwardSource = attribute.messageId
-                        } else {
-                            if attribute is PaidStarsMessageAttribute {
-                            } else {
-                                filteredAttributes.append(attribute)
-                            }
+                        } else if let attribute = resentMessageRequestedAttribute(attribute, isSecretChat: peerId.namespace == Namespaces.Peer.SecretChat) {
+                            filteredAttributes.append(attribute)
                         }
                     }
                     
@@ -1823,6 +853,8 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
         }
     }
     
+    var localGroupingKeyBySourceKey: [Int64: Int64] = [:]
+    
     var updatedMessages: [(Bool, EnqueueMessage)] = []
     outer: for (transformedMedia, message) in messages {
         var updatedMessage = message
@@ -1853,7 +885,7 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                         updatedMessages.append((true, .forward(source: replyToMessageId.messageId, threadId: threadId, grouping: .none, attributes: attributes, correlationId: nil)))
                     }
                 }
-            case let .forward(sourceId, threadId, _, _, _):
+            case let .forward(sourceId, threadId, grouping, forwardAttributes, _):
                 if let sourceMessage = forwardedMessageToBeReuploaded(transaction: transaction, id: sourceId) {
                     var mediaReference: AnyMediaReference?
                     if sourceMessage.id.peerId.namespace == Namespaces.Peer.SecretChat {
@@ -1861,7 +893,13 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                             mediaReference = .standalone(media: media)
                         }
                     }
-                    updatedMessages.append((transformedMedia, .message(text: sourceMessage.text, attributes: sourceMessage.attributes, inlineStickers: [:], mediaReference: mediaReference, threadId: threadId, replyToMessageId: threadId.flatMap { EngineMessageReplySubject(messageId: MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: Int32(clamping: $0)), quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: [])))
+                    var text = sourceMessage.text
+                    var hidesCaption = false
+                    if let media = mediaReference?.media, media is TelegramMediaImage || media is TelegramMediaFile, forwardAttributes.contains(where: { ($0 as? ForwardOptionsMessageAttribute)?.hideCaptions == true }) {
+                        text = ""
+                        hidesCaption = true
+                    }
+                    updatedMessages.append((transformedMedia, .message(text: text, attributes: forwardCopyRequestedAttributes(sourceAttributes: sourceMessage.attributes, forwardAttributes: forwardAttributes, hidesCaption: hidesCaption), inlineStickers: [:], mediaReference: mediaReference, threadId: threadId, replyToMessageId: threadId.flatMap { EngineMessageReplySubject(messageId: MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: Int32(clamping: $0)), quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: forwardGroupingKey(grouping: grouping, sourceGroupingKey: sourceMessage.groupingKey, generatedKeys: &localGroupingKeyBySourceKey), correlationId: nil, bubbleUpEmojiOrStickersets: [])))
                     continue outer
                 }
         }
@@ -1884,8 +922,6 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
         
         var addedHashtags: [String] = []
         var emojiItems: [RecentEmojiItem] = []
-        
-        var localGroupingKeyBySourceKey: [Int64: Int64] = [:]
         
         var globallyUniqueIds: [Int64] = []
         for (transformedMedia, message) in updatedMessages {
@@ -1974,23 +1010,8 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                         }
                     }
                     
-                    for attribute in filterMessageAttributesForOutgoingMessage(requestedAttributes) {
-                        if let attribute = attribute as? AutoremoveTimeoutMessageAttribute {
-                            if let _ = peer as? TelegramSecretChat {
-                                peerAutoremoveTimeout = nil
-                                attributes.append(attribute)
-                            } else {
-                                attributes.append(AutoclearTimeoutMessageAttribute(timeout: attribute.timeout, countdownBeginTime: nil))
-                            }
-                        } else {
-                            attributes.append(attribute)
-                        }
-                    }
-                    
-                    if let peerAutoremoveTimeout = peerAutoremoveTimeout {
-                        attributes.append(AutoremoveTimeoutMessageAttribute(timeout: peerAutoremoveTimeout, countdownBeginTime: nil))
-                    }
-                        
+                    attributes.append(contentsOf: outgoingMessageAttributes(requestedAttributes: requestedAttributes, isSecretChat: peer is TelegramSecretChat, peerAutoremoveTimeout: peerAutoremoveTimeout))
+
                     if let replyToMessageId = replyToMessageId {
                         var threadMessageId: MessageId?
                         var quote = replyToMessageId.quote
@@ -2239,27 +1260,36 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                             }
                         }
                         
+                        var hidesCaption = false
                         if hideCaptions {
                             for media in sourceMessage.media {
                                 if media is TelegramMediaImage || media is TelegramMediaFile {
                                     messageText = ""
+                                    hidesCaption = true
                                     break
                                 }
                             }
                         }
                         
-                        if sourceMessage.id.namespace == Namespaces.Message.Cloud && peerId.namespace != Namespaces.Peer.SecretChat {
+                        if (sourceMessage.id.namespace == Namespaces.Message.Cloud || Namespaces.Message.allEphemeral.contains(sourceMessage.id.namespace)) && peerId.namespace != Namespaces.Peer.SecretChat {
                             attributes.append(ForwardSourceInfoAttribute(messageId: sourceMessage.id))
                         
-                            if peerId == account.peerId {
+                            if sourceMessage.id.namespace == Namespaces.Message.Cloud && peerId == account.peerId {
                                 attributes.append(SourceReferenceMessageAttribute(messageId: sourceMessage.id))
                             }
                             
-                            attributes.append(contentsOf: filterMessageAttributesForForwardedMessage(requestedAttributes))
-                            attributes.append(contentsOf: filterMessageAttributesForForwardedMessage(sourceMessage.attributes, forwardedMessageIds: forwardedMessageIds))
+                            attributes.append(contentsOf: forwardedMessageAttributes(requestedAttributes: requestedAttributes, sourceAttributes: sourceMessage.attributes, forwardedMessageIds: forwardedMessageIds))
+
+                            let ephemeralParams = ephemeralForwardParams(sourceMessage)
+                            let ephemeralBotPeerId = ephemeralParams?.botPeerId
+                            if sourceMessage.id.namespace == Namespaces.Message.EphemeralLocal {
+                                attributes.removeAll(where: { $0 is InlineBotMessageAttribute })
+                            } else if sourceMessage.id.namespace == Namespaces.Message.EphemeralAnchored, let inlineBotPeerId = ephemeralParams?.inlineBotPeerId, !attributes.contains(where: { $0 is InlineBotMessageAttribute }) {
+                                attributes.append(InlineBotMessageAttribute(peerId: inlineBotPeerId, title: nil))
+                            }
                             
                             var sourceReplyMarkup: ReplyMarkupMessageAttribute? = nil
-                            var sourceSentViaBot = false
+                            var sourceSentViaBot = ephemeralBotPeerId != nil
                             for attribute in attributes {
                                 if let attribute = attribute as? ReplyMarkupMessageAttribute {
                                     sourceReplyMarkup = attribute
@@ -2296,13 +1326,15 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                             
                             if hideSendersNames {
                                 
+                            } else if sourceMessage.id.namespace == Namespaces.Message.EphemeralLocal {
+                                forwardInfo = StoreMessageForwardInfo(authorId: ephemeralParams?.authorId ?? author.id, sourceId: nil, sourceMessageId: nil, date: sourceMessage.timestamp, authorSignature: nil, psaType: nil, flags: [])
                             } else if let sourceForwardInfo = sourceMessage.forwardInfo {
                                 forwardInfo = StoreMessageForwardInfo(authorId: sourceForwardInfo.author?.id, sourceId: sourceForwardInfo.source?.id, sourceMessageId: sourceForwardInfo.sourceMessageId, date: sourceForwardInfo.date, authorSignature: sourceForwardInfo.authorSignature, psaType: nil, flags: [])
                             } else {
                                 if sourceMessage.id.peerId != account.peerId {
-                                    var sourceId: PeerId? = nil
-                                    var sourceMessageId: MessageId? = nil
-                                    if case let .channel(peer) = messageMainPeer(EngineMessage(sourceMessage)), case .broadcast = peer.info {
+                                    var sourceId = ephemeralParams?.sourceId
+                                    var sourceMessageId = ephemeralParams?.sourceMessageId
+                                    if ephemeralParams == nil, case let .channel(peer) = messageMainPeer(EngineMessage(sourceMessage)), case .broadcast = peer.info {
                                         sourceId = peer.id
                                         sourceMessageId = sourceMessage.id
                                     }
@@ -2317,7 +1349,8 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
 
                                     let psaType: String? = nil
 
-                                    forwardInfo = StoreMessageForwardInfo(authorId: author.id, sourceId: sourceId, sourceMessageId: sourceMessageId, date: sourceMessage.timestamp, authorSignature: authorSignature, psaType: psaType, flags: [])
+                                    let forwardAuthorId = ephemeralParams?.authorId ?? author.id
+                                    forwardInfo = StoreMessageForwardInfo(authorId: forwardAuthorId, sourceId: sourceId, sourceMessageId: sourceMessageId, date: sourceMessage.timestamp, authorSignature: authorSignature, psaType: psaType, flags: [])
                                 } else {
                                     forwardInfo = nil
                                 }
@@ -2329,7 +1362,10 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                                 }
                             }
                         } else {
-                            attributes.append(contentsOf: filterMessageAttributesForOutgoingMessage(sourceMessage.attributes))
+                            // A copy into a secret chat, whose own timer is already in `attributes`. The requested
+                            // attributes are not necessarily the forward's own: a reply that quotes another chat's
+                            // message becomes a forward carrying the reply's attributes.
+                            attributes.append(contentsOf: filterMessageAttributesForOutgoingMessage(forwardCopyRequestedAttributes(sourceAttributes: sourceMessage.attributes, forwardAttributes: [], hidesCaption: hidesCaption)))
                         }
                                                 
                         var messageNamespace = Namespaces.Message.Local
@@ -2384,23 +1420,7 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                         
                         let (tags, globalTags) = tagsForStoreMessage(incoming: false, attributes: attributes, media: sourceMessage.media, textEntities: entitiesAttribute?.entities, isPinned: false)
                         
-                        let localGroupingKey: Int64?
-                        switch grouping {
-                            case .none:
-                                localGroupingKey = nil
-                            case .auto:
-                                if let groupingKey = sourceMessage.groupingKey {
-                                    if let generatedKey = localGroupingKeyBySourceKey[groupingKey] {
-                                        localGroupingKey = generatedKey
-                                    } else {
-                                        let generatedKey = Int64.random(in: Int64.min ... Int64.max)
-                                        localGroupingKeyBySourceKey[groupingKey] = generatedKey
-                                        localGroupingKey = generatedKey
-                                    }
-                                } else {
-                                    localGroupingKey = nil
-                                }
-                        }
+                        let localGroupingKey = forwardGroupingKey(grouping: grouping, sourceGroupingKey: sourceMessage.groupingKey, generatedKeys: &localGroupingKeyBySourceKey)
                         
                         var augmentedMediaList = sourceMessage.media.map { media -> Media in
                             return augmentMediaWithReference(.message(message: MessageReference(sourceMessage), media: media))

@@ -71,11 +71,11 @@ public enum WalletState: Equatable, Sendable {
 }
 
 public struct WalletUserAddress: Equatable {
-    public let userId: EnginePeer.Id
+    public let userId: EnginePeer.Id?
     public let address: String
     public let publicKey: Data
 
-    public init(userId: EnginePeer.Id, address: String, publicKey: Data) {
+    public init(userId: EnginePeer.Id?, address: String, publicKey: Data) {
         self.userId = userId
         self.address = address
         self.publicKey = publicKey
@@ -102,6 +102,7 @@ public struct WalletTransaction: Equatable, Sendable {
     public let comment: String?
     public let commentEncrypted: Bool
     public let txHash: String?
+    public let nft: WalletNftItem?
 
     public init(
         incoming: Bool,
@@ -115,7 +116,8 @@ public struct WalletTransaction: Equatable, Sendable {
         peer: WalletTransactionPeer,
         comment: String?,
         commentEncrypted: Bool = false,
-        txHash: String?
+        txHash: String?,
+        nft: WalletNftItem? = nil
     ) {
         self.incoming = incoming
         self.gasless = gasless
@@ -129,6 +131,7 @@ public struct WalletTransaction: Equatable, Sendable {
         self.comment = comment
         self.commentEncrypted = commentEncrypted
         self.txHash = txHash
+        self.nft = nft
     }
 }
 
@@ -299,10 +302,12 @@ private extension WalletUserAddress {
         switch apiAddress {
         case let .walletUserAddress(address):
             self.init(
-                userId: EnginePeer.Id(
-                    namespace: Namespaces.Peer.CloudUser,
-                    id: PeerId.Id._internalFromInt64Value(address.userId)
-                ),
+                userId: address.userId.map { userId in
+                    EnginePeer.Id(
+                        namespace: Namespaces.Peer.CloudUser,
+                        id: PeerId.Id._internalFromInt64Value(userId)
+                    )
+                },
                 address: address.address,
                 publicKey: address.publicKey.makeData()
             )
@@ -349,7 +354,8 @@ extension WalletTransaction {
                 peer: WalletTransactionPeer(apiPeer: walletTransaction.peer, transaction: transaction),
                 comment: walletTransaction.comment,
                 commentEncrypted: (walletTransaction.flags & (1 << 6)) != 0,
-                txHash: walletTransaction.txHash
+                txHash: walletTransaction.txHash,
+                nft: walletTransaction.nft.map(WalletNftItem.init(apiItem:))
             )
         }
     }
@@ -409,7 +415,7 @@ func _internal_getWalletState(account: Account) -> Signal<WalletState, WalletGet
 
 private struct CachedWalletUserAddresses: Codable {
     struct Address: Codable {
-        let userId: Int64
+        let userId: Int64?
         let address: String
         let publicKey: Data
     }
@@ -418,12 +424,12 @@ private struct CachedWalletUserAddresses: Codable {
     let timestamp: Int32
 
     init(addresses: [WalletUserAddress], timestamp: Int32) {
-        self.addresses = addresses.map { Address(userId: $0.userId.toInt64(), address: $0.address, publicKey: $0.publicKey) }
+        self.addresses = addresses.map { Address(userId: $0.userId?.toInt64(), address: $0.address, publicKey: $0.publicKey) }
         self.timestamp = timestamp
     }
 
     var userAddresses: [WalletUserAddress] {
-        return self.addresses.map { WalletUserAddress(userId: PeerId($0.userId), address: $0.address, publicKey: $0.publicKey) }
+        return self.addresses.map { WalletUserAddress(userId: $0.userId.map { PeerId($0) }, address: $0.address, publicKey: $0.publicKey) }
     }
 }
 
@@ -551,7 +557,7 @@ func _internal_getWalletGaslessInfo(account: Account) -> Signal<WalletGaslessInf
     }
 }
 
-func _internal_sendWalletTransfer(account: Account, dataNormal: Data, dataGasless: Data?, randomId: Int64, pendingMessage: WalletPendingTransferMessageReference? = nil) -> Signal<WalletSendTransferResult, WalletSendTransferError> {
+func _internal_sendWalletTransfer(account: Account, dataNormal: Data, dataGasless: Data?, recipientPeerId: EnginePeer.Id?, randomId: Int64, pendingMessage: WalletPendingTransferMessageReference? = nil) -> Signal<WalletSendTransferResult, WalletSendTransferError> {
     guard !dataNormal.isEmpty, dataNormal.count <= 16 * 1024,
           (dataGasless?.count ?? 0) <= 16 * 1024 else {
         if let pendingMessage {
@@ -561,22 +567,35 @@ func _internal_sendWalletTransfer(account: Account, dataNormal: Data, dataGasles
         }
         return .fail(.invalidData)
     }
-    return account.network.request(Api.functions.wallet.sendTransfer(
-        flags: dataGasless == nil ? 0 : (1 << 0),
-        dataNormal: Buffer(data: dataNormal),
-        dataGasless: dataGasless.map { Buffer(data: $0) },
-        randomId: randomId
-    ), automaticFloodWait: false)
-    |> mapError { error -> WalletSendTransferError in
-        switch error.errorDescription {
-        case "WALLET_TRANSFER_DATA_INVALID":
-            return .invalidData
-        case "WALLET_KEY_MISMATCH":
-            return .keyMismatch
-        case "WALLET_TRANSFER_SEND_FAILED":
-            return .sendFailed
-        default:
-            return error.errorCode < 0 ? .network : .generic
+    return account.postbox.transaction { transaction -> Api.InputUser in
+        guard let recipientPeerId,
+              recipientPeerId.namespace == Namespaces.Peer.CloudUser,
+              let peer = transaction.getPeer(recipientPeerId),
+              let inputUser = apiInputUser(peer) else {
+            return .inputUserEmpty
+        }
+        return inputUser
+    }
+    |> castError(WalletSendTransferError.self)
+    |> mapToSignal { inputUser -> Signal<Api.Updates, WalletSendTransferError> in
+        return account.network.request(Api.functions.wallet.sendTransfer(
+            flags: dataGasless == nil ? 0 : (1 << 0),
+            dataNormal: Buffer(data: dataNormal),
+            dataGasless: dataGasless.map { Buffer(data: $0) },
+            userId: inputUser,
+            randomId: randomId
+        ), automaticFloodWait: false)
+        |> mapError { error -> WalletSendTransferError in
+            switch error.errorDescription {
+            case "WALLET_TRANSFER_DATA_INVALID":
+                return .invalidData
+            case "WALLET_KEY_MISMATCH":
+                return .keyMismatch
+            case "WALLET_TRANSFER_SEND_FAILED":
+                return .sendFailed
+            default:
+                return error.errorCode < 0 ? .network : .generic
+            }
         }
     }
     |> mapToSignal { updates -> Signal<WalletSendTransferResult, WalletSendTransferError> in

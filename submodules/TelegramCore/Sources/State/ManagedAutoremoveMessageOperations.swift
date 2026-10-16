@@ -90,41 +90,24 @@ func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRe
                                 if let forwardInfo = currentMessage.forwardInfo {
                                     storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
                                 }
-                                // Decide before Telegram replaces one-time media with ExpiredContent.
-                                // Secret chats deliberately remain on Telegram's native lifecycle.
-                                let customKeepOneTimeIdentity = (
-                                    ((CustomHotSettings.object(forKey: "custom.ProtectedContent.Enabled") as? Bool) ?? true)
-                                    && ((CustomHotSettings.object(forKey: "custom.ProtectedContent.OneTimeSave") as? Bool) ?? false)
-                                    && currentMessage.id.peerId.namespace != Namespaces.Peer.SecretChat
-                                    && currentMessage.minAutoremoveOrClearTimeout == viewOnceTimeout
-                                    && currentMessage.attributes.contains(where: { $0 is ConsumableContentMessageAttribute })
-                                )
                                 var updatedMedia = currentMessage.media
-                                if !customKeepOneTimeIdentity {
-                                    for i in 0 ..< updatedMedia.count {
-                                        if let _ = updatedMedia[i] as? TelegramMediaImage {
-                                            updatedMedia[i] = TelegramMediaExpiredContent(data: .image)
-                                        } else if let file = updatedMedia[i] as? TelegramMediaFile {
-                                            if file.isInstantVideo {
-                                                updatedMedia[i] = TelegramMediaExpiredContent(data: .videoMessage)
-                                            } else if file.isVoice {
-                                                updatedMedia[i] = TelegramMediaExpiredContent(data: .voiceMessage)
-                                            } else {
-                                                updatedMedia[i] = TelegramMediaExpiredContent(data: .file)
-                                            }
+                                for i in 0 ..< updatedMedia.count {
+                                    if let _ = updatedMedia[i] as? TelegramMediaImage {
+                                        updatedMedia[i] = TelegramMediaExpiredContent(data: .image)
+                                    } else if let file = updatedMedia[i] as? TelegramMediaFile {
+                                        if file.isInstantVideo {
+                                            updatedMedia[i] = TelegramMediaExpiredContent(data: .videoMessage)
+                                        } else if file.isVoice {
+                                            updatedMedia[i] = TelegramMediaExpiredContent(data: .voiceMessage)
+                                        } else {
+                                            updatedMedia[i] = TelegramMediaExpiredContent(data: .file)
                                         }
                                     }
                                 }
                                 var updatedAttributes = currentMessage.attributes
-                                // Preserve the cloud view-once identity for retained media, but disarm the
-                                // timestamp operation. countdownBeginTime == nil does not schedule another pass.
                                 for i in 0 ..< updatedAttributes.count {
-                                    if let attribute = updatedAttributes[i] as? AutoclearTimeoutMessageAttribute {
-                                        if customKeepOneTimeIdentity {
-                                            updatedAttributes[i] = AutoclearTimeoutMessageAttribute(timeout: attribute.timeout, countdownBeginTime: nil)
-                                        } else {
-                                            updatedAttributes.remove(at: i)
-                                        }
+                                    if let _ = updatedAttributes[i] as? AutoclearTimeoutMessageAttribute {
+                                        updatedAttributes.remove(at: i)
                                         break
                                     }
                                 }
