@@ -1,4 +1,5 @@
 include "MediaId.fbs";
+include "InstantPageButtonAction.fbs";
 include "PixelDimensions.fbs";
 
 namespace TelegramCore;
@@ -181,30 +182,4 @@ table RichText_TextButton {
 // The union has exactly the 10 ReplyMarkupButtonAction cases reachable from Api.InlineButtonType.
 // text / requestPhone / requestMap / setupPoll / requestPeer come only from Api.ButtonType and
 // cannot occur on a page button.
-
-table InstantPageButtonAction_Payment {}
-
-table InstantPageButtonAction_SwitchInline {
-    query:string (id: 0, required);
-    samePeer:bool (id: 1);
-    peerTypes:int (id: 2);
-}
-
-table InstantPageButtonAction_OpenUserProfile {
-    peerId:long (id: 0);
-}
-
-table InstantPageButtonAction_CopyText {
-    payload:string (id: 0, required);
-}
-
-table InstantPageButtonAction_Disabled {}
-
-table InstantPageButton {
-    text:RichText (id: 0, required);
-    action:InstantPageButtonAction (id: 1, required);
-    color:int = -1 (id: 2);
-    // `richButtonStyle` link:flags.3. A defaulted trailing scalar, so buffers written before it
-    // existed read `false`. Scalars cannot be `required` in flatc.
-    isLink:bool = false (id: 3);
 }
