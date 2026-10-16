@@ -9,7 +9,7 @@ import subprocess
 import shutil
 import glob
 
-from BuildEnvironment import resolve_executable, call_executable, run_executable_with_output, BuildEnvironmentVersions, BuildEnvironment
+from BuildEnvironment import resolve_executable_with_pathext as resolve_executable, call_executable, run_executable_with_output, BuildEnvironmentVersions, BuildEnvironment
 from ProjectGeneration import generate
 from BazelLocation import locate_bazel
 from BuildConfiguration import CodesigningSource, GitCodesigningSource, DirectoryCodesigningSource, XcodeManagedCodesigningSource, BuildConfiguration, build_configuration_from_json

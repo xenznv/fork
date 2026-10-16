@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 
-from BuildEnvironment import is_apple_silicon, call_executable, BuildEnvironment
+from BuildEnvironment import is_apple_silicon, call_executable, resolve_executable_with_pathext as resolve_executable, BuildEnvironment
 
 
 def remove_directory(path):

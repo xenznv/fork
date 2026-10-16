@@ -6,7 +6,7 @@ import tempfile
 import hashlib
 import shutil
 
-from BuildEnvironment import is_apple_silicon, resolve_executable, call_executable, run_executable_with_status, BuildEnvironmentVersions
+from BuildEnvironment import is_apple_silicon, resolve_executable_with_pathext as resolve_executable, call_executable, run_executable_with_status, BuildEnvironmentVersions
 
 def transform_cache_host_into_http(grpc_url):
     parsed_url = urlparse(grpc_url)

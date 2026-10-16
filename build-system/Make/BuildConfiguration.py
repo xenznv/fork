@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import plistlib
 
-from BuildEnvironment import run_executable_with_output, check_run_system
+from BuildEnvironment import resolve_executable_with_pathext as resolve_executable, run_executable_with_output, check_run_system
 from DecryptMatch import decrypt_match_data
 
 class BuildConfiguration:

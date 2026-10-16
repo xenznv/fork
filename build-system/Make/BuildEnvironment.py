@@ -5,10 +5,12 @@ import subprocess
 import sys
 
 def is_apple_silicon():
-    if platform.processor() == 'arm':
+    # macOS reports 'arm' on Apple Silicon and Windows reports something else.
+    if platform.system() == 'Darwin' and platform.machine() == 'arm64':
         return True
-    else:
-        return False
+    if platform.system() == 'Darwin' and platform.processor() == 'arm':
+        return True
+    return False
 
 
 def get_clean_env(use_clean_env=True):
@@ -16,6 +18,30 @@ def get_clean_env(use_clean_env=True):
     if use_clean_env:
         clean_env['PATH'] = '/usr/bin:/bin:/usr/sbin:/sbin'
     return clean_env
+
+
+
+def _is_executable_file(fpath):
+    return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+
+
+def _resolve_executable_with_ext(program, search_paths):
+    """Resolve executable with PATHEXT awareness (Windows)."""
+    for base in search_paths:
+        # Try exact name first (Unix or already-listed .exe/.cmd etc.)
+        candidate = os.path.join(base, program)
+        if _is_executable_file(candidate):
+            return candidate
+        # On Windows, also try each PATHEXT extension
+        pathext = os.environ.get('PATHEXT', '').split(os.pathsep)
+        for ext in pathext:
+            ext = ext if ext.startswith('.') else '.' + ext
+            candidate = os.path.join(base, program + ext)
+            if _is_executable_file(candidate):
+                return candidate
+    return None
+
 
 
 def resolve_executable(program, use_clean_env=True):
@@ -29,8 +55,24 @@ def resolve_executable(program, use_clean_env=True):
     return None
 
 
+
+def resolve_executable_with_pathext(program, use_clean_env=False):
+    """Resolve executable with PATHEXT awareness. Falls back to basic resolve.
+
+    On Windows, the basic resolve fails for commands like `curl` that exist as
+    `curl.exe` but not `curl` (no extension matches in PATH entries). This
+    variant checks each PATHEXT extension. On non-Windows it behaves identically
+    to resolve_executable.
+    """
+    if os.name != 'nt':
+        return resolve_executable(program, use_clean_env=use_clean_env)
+
+    search_paths = get_clean_env(use_clean_env=use_clean_env)["PATH"].split(os.pathsep)
+    return _resolve_executable_with_ext(program, search_paths)
+
+
 def run_executable_with_output(path, arguments, use_clean_env=True, decode=True, input=None, stderr_to_stdout=True, print_command=False, check_result=False):
-    executable_path = resolve_executable(path, use_clean_env=use_clean_env)
+    executable_path = resolve_executable_with_pathext(path, use_clean_env=use_clean_env)
     if executable_path is None:
         raise Exception('Could not resolve {} to a valid executable file'.format(path))
 
@@ -41,6 +83,8 @@ def run_executable_with_output(path, arguments, use_clean_env=True, decode=True,
     if print_command:
         print('Running {} {}'.format(executable_path, arguments))
 
+    if isinstance(arguments, str):
+        arguments = [arguments]
     process = subprocess.Popen(
         [executable_path] + arguments,
         stdout=subprocess.PIPE,
@@ -67,7 +111,7 @@ def run_executable_with_output(path, arguments, use_clean_env=True, decode=True,
 
 
 def run_executable_with_status(arguments, use_clean_environment=True):
-    executable_path = resolve_executable(arguments[0])
+    executable_path = resolve_executable_with_pathext(arguments[0], use_clean_env=use_clean_environment)
     if executable_path is None:
         raise Exception(f'Could not resolve {arguments[0]} to a valid executable file')
 
@@ -88,8 +132,8 @@ def run_executable_with_status(arguments, use_clean_environment=True):
     return result.returncode
 
 
-def call_executable(arguments, use_clean_environment=True, check_result=True):
-    executable_path = resolve_executable(arguments[0])
+def call_executable(arguments, use_clean_environment=False, check_result=True):
+    executable_path = resolve_executable_with_pathext(arguments[0], use_clean_env=use_clean_environment)
     if executable_path is None:
         raise Exception('Could not resolve {} to a valid executable file'.format(arguments[0]))
 
