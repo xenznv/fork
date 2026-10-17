@@ -35,7 +35,7 @@ genrule(
     rm -rf "$$BUILD_DIR"
     mkdir -p "$$BUILD_DIR"
 
-    "$FLATC" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$BUILD_DIR" {flatc_input}
+    "$FLATC_ABS" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$BUILD_DIR" {flatc_input}
     """.format(
         flatc_input=flatc_input
     ) + "\n" + "\n".join([
