@@ -27,9 +27,10 @@ genrule(
     # so FLATC is just the relative path.
     FLATC="$FLATC_RELATIVE"
     echo "FLATC=$FLATC"
-    echo "FLATC_ABS=$(pwd)/$FLATC"
-    ls -la "$FLATC" || echo "FLATC NOT FOUND at $FLATC"
-    file "$FLATC" || true
+    FLATC_ABS="$(pwd)/$FLATC"
+    echo "FLATC_ABS=$FLATC_ABS"
+    ls -la "$FLATC_ABS" || echo "FLATC NOT FOUND at $FLATC_ABS"
+    file "$FLATC_ABS" || true
     echo "cwd=$(pwd)"
     echo "RULEDIR=$RULEDIR"
     echo "pwd_output=$(pwd)"
