@@ -20,15 +20,17 @@ genrule(
     cmd_bash = 
     """
     set -eux
-    FLATC="$(pwd)/$(location //third-party/flatc:flatc_bin)"
+    FLATC_RELATIVE="$(location //third-party/flatc:flatc_bin)"
+    echo "FLATC_RELATIVE=$FLATC_RELATIVE"
+
+    FLATC="$(pwd)/$FLATC_RELATIVE"
+    echo "FLATC=$FLATC"
+    ls -la "$FLATC" || echo "FLATC NOT FOUND at $FLATC"
+    file "$FLATC" || true
 
     BUILD_DIR="$(RULEDIR)/build"
     rm -rf "$$BUILD_DIR"
     mkdir -p "$$BUILD_DIR"
-
-    echo "FLATC=$FLATC"
-    ls -la "$FLATC" || echo "FLATC NOT FOUND"
-    file "$FLATC" || true
 
     "$FLATC" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$BUILD_DIR" {flatc_input}
     """.format(
