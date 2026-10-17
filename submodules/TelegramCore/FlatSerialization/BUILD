@@ -20,27 +20,28 @@ genrule(
     cmd_bash = 
     """
     set -eux
-    FLATC_RELATIVE="$(location //third-party/flatc:flatc_bin)"
-    echo "FLATC_RELATIVE=$FLATC_RELATIVE"
 
     # The location is relative to execroot. The genrule runs with cwd at execroot,
     # so FLATC is just the relative path.
-    FLATC="$FLATC_RELATIVE"
-    echo "FLATC=$FLATC"
-    FLATC_ABS="$(pwd)/$FLATC"
-    echo "FLATC_ABS=$FLATC_ABS"
-    ls -la "$FLATC_ABS" || echo "FLATC NOT FOUND at $FLATC_ABS"
-    file "$FLATC_ABS" || true
-    echo "cwd=$(pwd)"
-    echo "RULEDIR=$RULEDIR"
-    echo "pwd_output=$(pwd)"
-    echo "FLATC_EXISTS=$([ -x "$FLATC_ABS" ] && echo YES || echo NO)"
+    FLATC_RELATIVE="$$(location //third-party/flatc:flatc_bin)"
+    echo "FLATC_RELATIVE=$$FLATC_RELATIVE"
 
-    BUILD_DIR="$(RULEDIR)/build"
+    FLATC="$$FLATC_RELATIVE"
+    echo "FLATC=$$FLATC"
+    FLATC_ABS="$$(pwd)/$$FLATC"
+    echo "FLATC_ABS=$$FLATC_ABS"
+    ls -la "$$FLATC_ABS" || echo "FLATC NOT FOUND at $$FLATC_ABS"
+    file "$$FLATC_ABS" || true
+    echo "cwd=$$(pwd)"
+    echo "RULEDIR=$$RULEDIR"
+    echo "pwd_output=$$(pwd)"
+    echo "FLATC_EXISTS=$$(test -x "$$FLATC_ABS" && echo YES || echo NO)"
+
+    BUILD_DIR="$$RULEDIR/build"
     rm -rf "$$BUILD_DIR"
     mkdir -p "$$BUILD_DIR"
 
-    "$FLATC_ABS" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$BUILD_DIR" {flatc_input}
+    "$$FLATC_ABS" --require-explicit-ids --swift -I "$$RULEDIR/Models" -o "$$BUILD_DIR" {flatc_input}
     """.format(
         flatc_input=flatc_input
     ) + "\n" + "\n".join([
