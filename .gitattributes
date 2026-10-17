@@ -1,1 +1,9 @@
 *.fbs text eol=lf
+
+# Bazel files are consumed by bash on macOS CI; a single \r breaks the executed
+# scripts ("$'\r': command not found" → Exit 127). Pin them to LF.
+BUILD text eol=lf
+BUILD.bazel text eol=lf
+*.bazel text eol=lf
+*.bzl text eol=lf
+*.sh text eol=lf
