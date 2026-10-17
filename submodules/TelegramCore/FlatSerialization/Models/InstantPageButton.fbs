@@ -7,66 +7,9 @@ namespace TelegramCore;
 // `Api.InlineButtonType` a page button can carry, `InstantPageButton` the shared button shape.
 // `textButton` and `pageButton` (TL) give both constructors the same fields, so one table serves both.
 
-union InstantPageButtonAction_Value {
-    InstantPageButtonAction_Url,
-    InstantPageButtonAction_UrlAuth,
-    InstantPageButtonAction_OpenWebView,
-    InstantPageButtonAction_OpenWebApp,
-    InstantPageButtonAction_Callback,
-    InstantPageButtonAction_Payment,
-    InstantPageButtonAction_SwitchInline,
-    InstantPageButtonAction_OpenUserProfile,
-    InstantPageButtonAction_CopyText,
-    InstantPageButtonAction_Disabled
-}
-
-table InstantPageButtonAction {
-    value:InstantPageButtonAction_Value (id: 1, required);
-}
-
-table InstantPageButtonAction_Url {
-    url:string (id: 0, required);
-}
-
-table InstantPageButtonAction_UrlAuth {
-    url:string (id: 0, required);
-    buttonId:int32 (id: 1);
-}
-
-table InstantPageButtonAction_OpenWebView {
-    url:string (id: 0, required);
-    simple:bool (id: 1);
-}
-
-table InstantPageButtonAction_OpenWebApp {
-}
-
-table InstantPageButtonAction_Callback {
-    data:[ubyte] (id: 0, required);
-    requiresPassword:bool (id: 1);
-}
-
-table InstantPageButtonAction_Payment {
-}
-
-table InstantPageButtonAction_SwitchInline {
-    query:string (id: 0, required);
-    samePeer:bool (id: 1);
-    peerTypes:int32 (id: 2);
-}
-
-table InstantPageButtonAction_OpenUserProfile {
-    // `required` is not legal on scalar fields in FlatBuffers; the writer always emits
-    // `peerId`, and the reader already guards presence of the whole table.
-    peerId:long (id: 0);
-}
-
-table InstantPageButtonAction_CopyText {
-    payload:string (id: 0, required);
-}
-
-table InstantPageButtonAction_Disabled {
-}
+// NOTE: InstantPageButtonAction_Value union and all InstantPageButtonAction_* tables are defined
+// in InstantPageButtonAction.fbs (included above). This file only defines the InstantPageButton
+// table which references them.
 
 table InstantPageButton {
     text:RichText (id: 0, required);
