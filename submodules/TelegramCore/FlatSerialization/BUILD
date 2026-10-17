@@ -19,19 +19,23 @@ genrule(
     ],
     cmd_bash = 
     """
-    set -ex
-    FLATC="$$(pwd)/$(location //third-party/flatc:flatc_bin)"
+    set -eux
+    FLATC="$(pwd)/$(location //third-party/flatc:flatc_bin)"
 
     BUILD_DIR="$(RULEDIR)/build"
     rm -rf "$$BUILD_DIR"
     mkdir -p "$$BUILD_DIR"
 
-    "$$FLATC" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$$BUILD_DIR" {flatc_input}
+    echo "FLATC=$FLATC"
+    ls -la "$FLATC" || echo "FLATC NOT FOUND"
+    file "$FLATC" || true
+
+    "$FLATC" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$BUILD_DIR" {flatc_input}
     """.format(
         flatc_input=flatc_input
     ) + "\n" + "\n".join([
     """
-    cp "$$BUILD_DIR/{name}_generated.swift" "$(location {name}_generated.swift)"
+    cp "$BUILD_DIR/{name}_generated.swift" "$(location {name}_generated.swift)"
     """.format(name=name) for name in model_names
     ]),
     outs = generated_models,
