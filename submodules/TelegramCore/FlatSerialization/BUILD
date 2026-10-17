@@ -23,7 +23,9 @@ genrule(
     FLATC_RELATIVE="$(location //third-party/flatc:flatc_bin)"
     echo "FLATC_RELATIVE=$FLATC_RELATIVE"
 
-    FLATC="$(pwd)/$FLATC_RELATIVE"
+    # The location is relative to execroot. The genrule runs with cwd at execroot,
+    # so FLATC is just the relative path.
+    FLATC="$FLATC_RELATIVE"
     echo "FLATC=$FLATC"
     ls -la "$FLATC" || echo "FLATC NOT FOUND at $FLATC"
     file "$FLATC" || true
