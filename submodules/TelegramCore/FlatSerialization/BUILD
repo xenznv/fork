@@ -17,36 +17,21 @@ genrule(
     tools = [
         "//third-party/flatc:flatc_bin"
     ],
-    cmd_bash = 
+    cmd_bash =
     """
     set -eux
+    FLATC="$$(pwd)/$(location //third-party/flatc:flatc_bin)"
 
-    # The location is relative to execroot. The genrule runs with cwd at execroot,
-    # so FLATC is just the relative path.
-    FLATC_RELATIVE="$$(location //third-party/flatc:flatc_bin)"
-    echo "FLATC_RELATIVE=$$FLATC_RELATIVE"
-
-    FLATC="$$FLATC_RELATIVE"
-    echo "FLATC=$$FLATC"
-    FLATC_ABS="$$(pwd)/$$FLATC"
-    echo "FLATC_ABS=$$FLATC_ABS"
-    ls -la "$$FLATC_ABS" || echo "FLATC NOT FOUND at $$FLATC_ABS"
-    file "$$FLATC_ABS" || true
-    echo "cwd=$$(pwd)"
-    echo "RULEDIR=$$RULEDIR"
-    echo "pwd_output=$$(pwd)"
-    echo "FLATC_EXISTS=$$(test -x "$$FLATC_ABS" && echo YES || echo NO)"
-
-    BUILD_DIR="$$RULEDIR/build"
+    BUILD_DIR="$(RULEDIR)/build"
     rm -rf "$$BUILD_DIR"
     mkdir -p "$$BUILD_DIR"
 
-    "$$FLATC_ABS" --require-explicit-ids --swift -I "$$RULEDIR/Models" -o "$$BUILD_DIR" {flatc_input}
+    "$$FLATC" --require-explicit-ids --swift -o "$$BUILD_DIR" {flatc_input}
     """.format(
         flatc_input=flatc_input
     ) + "\n" + "\n".join([
     """
-    cp "$BUILD_DIR/{name}_generated.swift" "$(location {name}_generated.swift)"
+    cp "$$BUILD_DIR/{name}_generated.swift" "$(location {name}_generated.swift)"
     """.format(name=name) for name in model_names
     ]),
     outs = generated_models,
