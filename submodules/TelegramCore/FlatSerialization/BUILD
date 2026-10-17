@@ -20,12 +20,7 @@ genrule(
     cmd_bash = 
     """
     set -eux
-    FLATC_RELATIVE="$(location //third-party/flatc:flatc_bin)"
-    echo "FLATC_RELATIVE=$FLATC_RELATIVE"
-
-    # The location is relative to execroot. The genrule runs with cwd at execroot,
-    # so FLATC is just the relative path.
-    FLATC="$FLATC_RELATIVE"
+    FLATC="$(location //third-party/flatc:flatc_bin)"
     echo "FLATC=$FLATC"
     FLATC_ABS="$(pwd)/$FLATC"
     echo "FLATC_ABS=$FLATC_ABS"
@@ -34,6 +29,7 @@ genrule(
     echo "cwd=$(pwd)"
     echo "RULEDIR=$RULEDIR"
     echo "pwd_output=$(pwd)"
+    echo "FLATC_EXISTS=$([ -x "$FLATC_ABS" ] && echo YES || echo NO)"
 
     BUILD_DIR="$(RULEDIR)/build"
     rm -rf "$$BUILD_DIR"
