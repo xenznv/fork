@@ -27,20 +27,20 @@ genrule(
     # so FLATC is just the relative path.
     FLATC="$FLATC_RELATIVE"
     echo "FLATC=$FLATC"
-    echo "FLATC_ABS=$(pwd)/$FLATC"
-    ls -la "$(pwd)/$FLATC" || echo "FLATC NOT FOUND at $(pwd)/$FLATC"
-    file "$(pwd)/$FLATC" || true
+    FLATC_ABS="$(pwd)/$FLATC"
+    echo "FLATC_ABS=$FLATC_ABS"
+    ls -la "$FLATC_ABS" || echo "FLATC NOT FOUND at $FLATC_ABS"
+    file "$FLATC_ABS" || true
     echo "cwd=$(pwd)"
     echo "RULEDIR=$RULEDIR"
     echo "pwd_output=$(pwd)"
-    echo "FLATC_EXISTS=$([ -x "$(pwd)/$FLATC" ] && echo YES || echo NO)"
+    echo "FLATC_EXISTS=$([ -x "$FLATC_ABS" ] && echo YES || echo NO)"
 
     BUILD_DIR="$(RULEDIR)/build"
     rm -rf "$$BUILD_DIR"
     mkdir -p "$$BUILD_DIR"
 
-    echo "FLATC_CMD=$(pwd)/$FLATC"
-    "$(pwd)/$FLATC" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$BUILD_DIR" {flatc_input}
+    "$FLATC_ABS" --require-explicit-ids --swift -I "$(RULEDIR)/Models" -o "$BUILD_DIR" {flatc_input}
     """.format(
         flatc_input=flatc_input
     ) + "\n" + "\n".join([
