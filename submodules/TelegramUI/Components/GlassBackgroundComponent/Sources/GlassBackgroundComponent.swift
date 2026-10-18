@@ -490,7 +490,11 @@ public class GlassBackgroundView: UIView {
         }
     }
     
-    public private(set) var params: Params?
+    /// Target the native effect itself so UIKit includes the source backdrop in a morph.
+    public var transitionView: UIView {
+        return self.nativeView ?? self
+    }
+    
         
     public static var useCustomGlassImpl: Bool = false
     
@@ -1578,6 +1582,11 @@ public final class GlassContextExtractableContainer: UIView, ContextExtractableC
     
     public var contentView: UIView {
         return self.normalContentView
+    }
+    
+    /// Target the native effect itself so UIKit includes the source backdrop in a morph.
+    public var transitionView: UIView {
+        return self.glassView.transitionView
     }
     
     public var normalState: NormalState {
