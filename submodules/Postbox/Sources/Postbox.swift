@@ -1040,6 +1040,22 @@ public final class Transaction {
         return self.postbox?.getPendingMessageAction(type: type, id: id)
     }
     
+    public func getPendingMessageActions(type: PendingMessageActionType) -> [PendingMessageActionsEntry] {
+        assert(!self.disposed)
+        guard let postbox = self.postbox else {
+            return []
+        }
+        return postbox.pendingMessageActionsTable.getActions(type: type)
+    }
+    
+    public func getMessages(peerId: PeerId, namespace: MessageId.Namespace, from: MessageIndex, includeFrom: Bool, to: MessageIndex, limit: Int) -> [Message] {
+        assert(!self.disposed)
+        guard let postbox = self.postbox else {
+            return []
+        }
+        return postbox.messageHistoryTable.fetch(peerId: peerId, namespace: namespace, tag: nil, customTag: nil, threadId: nil, from: from, includeFrom: includeFrom, to: to, ignoreMessagesInTimestampRange: nil, ignoreMessageIds: Set(), limit: limit).map(postbox.renderIntermediateMessage(_:))
+    }
+    
     public func getMessageTagSummary(peerId: PeerId, threadId: Int64?, tagMask: MessageTags, namespace: MessageId.Namespace, customTag: MemoryBuffer?) -> MessageHistoryTagNamespaceSummary? {
         assert(!self.disposed)
         return self.postbox?.messageHistoryTagsSummaryTable.get(MessageHistoryTagsSummaryKey(tag: tagMask, peerId: peerId, threadId: threadId, namespace: namespace, customTag: customTag))
@@ -1410,7 +1426,7 @@ public final class Transaction {
         }
     }
     
-    public func combineTypingDrafts(locations: Set<PeerAndThreadId>, update: (PeerAndThreadId, (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute])?) -> (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute])?) {
+    public func combineTypingDrafts(locations: Set<PeerAndThreadId>, update: (PeerAndThreadId, (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute], isStopped: Bool)?) -> (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute], isStopped: Bool)?) {
         assert(!self.disposed)
         self.postbox!.combineTypingDrafts(locations: locations, update: update)
     }
@@ -1667,8 +1683,9 @@ final class PostboxImpl {
         var text: String
         var attributes: [MessageAttribute]
         var addedAtTimestamp: Double
+        var isStopped: Bool
         
-        init(id: Int64, namespace: MessageId.Namespace, stableId: UInt32, stableVersion: UInt32, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute], addedAtTimestamp: Double) {
+        init(id: Int64, namespace: MessageId.Namespace, stableId: UInt32, stableVersion: UInt32, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute], addedAtTimestamp: Double, isStopped: Bool = false) {
             self.id = id
             self.namespace = namespace
             self.stableId = stableId
@@ -1679,6 +1696,7 @@ final class PostboxImpl {
             self.text = text
             self.attributes = attributes
             self.addedAtTimestamp = addedAtTimestamp
+            self.isStopped = isStopped
         }
         
         static func ==(lhs: TypingDraft, rhs: TypingDraft) -> Bool {
@@ -1701,6 +1719,9 @@ final class PostboxImpl {
                 return false
             }
             if lhs.text != rhs.text {
+                return false
+            }
+            if lhs.isStopped != rhs.isStopped {
                 return false
             }
             if lhs.attributes.count != rhs.attributes.count {
@@ -2495,12 +2516,12 @@ final class PostboxImpl {
         }
     }
     
-    fileprivate func combineTypingDrafts(locations: Set<PeerAndThreadId>, update: (PeerAndThreadId, (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute])?) -> (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute])?) {
+    fileprivate func combineTypingDrafts(locations: Set<PeerAndThreadId>, update: (PeerAndThreadId, (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute], isStopped: Bool)?) -> (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute], isStopped: Bool)?) {
         for location in locations {
-            var updated: (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute])?
+            var updated: (id: Int64, namespace: MessageId.Namespace, threadId: Int64?, authorId: PeerId, timestamp: Int32, text: String, attributes: [MessageAttribute], isStopped: Bool)?
             let current = self.currentTypingDrafts[location]
             if let current {
-                updated = update(location, (current.id, current.namespace, current.threadId, current.authorId, current.timestamp, current.text, current.attributes))
+                updated = update(location, (current.id, current.namespace, current.threadId, current.authorId, current.timestamp, current.text, current.attributes, current.isStopped))
             } else {
                 updated = update(location, nil)
             }
@@ -2514,7 +2535,7 @@ final class PostboxImpl {
                     stableId = self.messageHistoryMetadataTable.getNextStableMessageIndexId()
                     stableVersion = 100000
                 }
-                let mappedDraft = TypingDraft(id: updated.id, namespace: updated.namespace, stableId: stableId, stableVersion: stableVersion, threadId: updated.threadId, authorId: updated.authorId, timestamp: updated.timestamp, text: updated.text, attributes: updated.attributes, addedAtTimestamp: CFAbsoluteTimeGetCurrent())
+                let mappedDraft = TypingDraft(id: updated.id, namespace: updated.namespace, stableId: stableId, stableVersion: stableVersion, threadId: updated.threadId, authorId: updated.authorId, timestamp: updated.timestamp, text: updated.text, attributes: updated.attributes, addedAtTimestamp: CFAbsoluteTimeGetCurrent(), isStopped: updated.isStopped)
                 if self.currentTypingDrafts[location] != mappedDraft {
                     self.currentTypingDrafts[location] = mappedDraft
                     self.currentUpdatedTypingDrafts[location] = TypingDraftUpdate(value: mappedDraft)
@@ -2531,6 +2552,9 @@ final class PostboxImpl {
         
         var nextTypingDraftExpirationTimestamp: Double?
         for (_, draft) in self.currentTypingDrafts {
+            if draft.isStopped {
+                continue
+            }
             if let nextTypingDraftExpirationTimestampValue = nextTypingDraftExpirationTimestamp {
                 nextTypingDraftExpirationTimestamp = min(draft.addedAtTimestamp + expirationTimeout, nextTypingDraftExpirationTimestampValue)
             } else {
@@ -2566,6 +2590,9 @@ final class PostboxImpl {
         let timestamp = CFAbsoluteTimeGetCurrent()
         var removedKeys: [PeerAndThreadId] = []
         for (key, draft) in self.currentTypingDrafts {
+            if draft.isStopped {
+                continue
+            }
             if draft.addedAtTimestamp + expirationTimeout >= timestamp {
                 removedKeys.append(key)
             }

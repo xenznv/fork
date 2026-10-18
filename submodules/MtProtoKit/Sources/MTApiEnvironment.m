@@ -287,6 +287,10 @@ static NSData *base64_decode(NSString *str) {
 
 @end
 
+@interface MTSocksProxySettings ()
+@property (nonatomic, readwrite) bool webProxy;
+@end
+
 @implementation MTSocksProxySettings
 
 - (instancetype)initWithIp:(NSString *)ip port:(uint16_t)port username:(NSString *)username password:(NSString *)password secret:(NSData *)secret {
@@ -297,6 +301,19 @@ static NSData *base64_decode(NSString *str) {
         _username = username;
         _password = password;
         _secret = secret;
+    }
+    return self;
+}
+
+- (instancetype)initWithIp:(NSString *)ip port:(uint16_t)port username:(NSString *)username password:(NSString *)password secret:(NSData *)secret webProxy:(bool)webProxy {
+    self = [super init];
+    if (self != nil) {
+        _ip = ip;
+        _port = port;
+        _username = username;
+        _password = password;
+        _secret = secret;
+        _webProxy = webProxy;
     }
     return self;
 }

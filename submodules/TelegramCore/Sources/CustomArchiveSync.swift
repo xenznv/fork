@@ -88,9 +88,15 @@ private func customArchiveMergedEditHistory(
 
         // The app records the same edit live when it was running, so an event
         // already in the history (same text, same moment) is skipped.
-        let known = texts.count == dates.count && zip(texts, dates).contains(
-            where: { $0.0 == oldText && $0.1 == dateText }
-        )
+        var known = false
+        if texts.count == dates.count {
+            for i in 0 ..< texts.count {
+                if texts[i] == oldText && dates[i] == dateText {
+                    known = true
+                    break
+                }
+            }
+        }
         if known {
             continue
         }
