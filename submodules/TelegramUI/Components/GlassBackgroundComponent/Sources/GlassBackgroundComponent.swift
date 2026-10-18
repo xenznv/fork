@@ -495,6 +495,7 @@ public class GlassBackgroundView: UIView {
         return self.nativeView ?? self
     }
     
+    public private(set) var params: Params?
         
     public static var useCustomGlassImpl: Bool = false
     
