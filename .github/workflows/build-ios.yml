@@ -188,10 +188,11 @@ jobs:
             -k build.keychain -P "" -T /usr/bin/codesign -T /usr/bin/security || true
           security import build-system/AppleWWDRCAG3.cer \
             -k build.keychain -P "" -T /usr/bin/codesign -T /usr/bin/security || true
-          # macOS marks a self-signed identity invalid unless its root cert is trusted.
-          security add-trusted-cert -r trustRoot -k build.keychain \
-            build-system/fake-codesigning/certs/Public.cer || \
-            sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain \
+          # macOS marks a self-signed identity invalid unless its root cert is
+          # trusted. Trust it in the admin (System) keychain: the user-keychain
+          # variant pops a GUI confirmation on headless runners and hangs forever.
+          sudo security add-trusted-cert -d -r trustRoot \
+            -k /Library/Keychains/System.keychain \
             build-system/fake-codesigning/certs/Public.cer
           security set-key-partition-list -S apple-tool:,apple: -k buildpwd build.keychain
           security find-identity -v build.keychain
