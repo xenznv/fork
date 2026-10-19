@@ -45,6 +45,13 @@ public func attributedString(from content: ChatInputContent) -> NSAttributedStri
                         fileId: fileId,
                         file: file,
                         enableAnimation: enableAnimation), range: r)
+            case .some(.button(_)):
+                // A button is an atom whose only carrying-run text is a bare `U+FFFC` (the label lives inside the
+                // button, see `ChatInputInlineEntity.button`). Keep the one-unit placeholder so this projection
+                // stays length-identical to the model's `plainText` (which keeps the run's `U+FFFC`), but emit no
+                // semantic attribute — a button is not expressible in `ChatTextInputAttributes` and never enters
+                // this legacy path (the native Document bridge and the InstantPage renderer handle buttons).
+                break
             case nil:
                 break
             }
@@ -106,6 +113,12 @@ public func attributedString(from content: ChatInputContent) -> NSAttributedStri
             // paragraphs above similarly render as plain text (`appendRuns` ignores heading style + list membership).
             // `ChatInputContent` stays the sole authoritative storage; this flat view is lossy by design. The native
             // engine carries these blocks via the direct `Document ↔ ChatInputContent` bridge, never this path.
+            break
+        case .details, .buttonRow:
+            // Off the flat axis: the model's `plainText` emits no character and no separator for these blocks,
+            // and this flat view mirrors that (see `ChatInputContent`). A detail's title/content and a button
+            // row are not expressible as flat text attributes; they round-trip via the structured Codable +
+            // InstantPage path, never this legacy view. Mirrors the `.media`/`.table` filter above.
             break
         }
         i += 1
@@ -171,6 +184,13 @@ public func entityPreservingFallbackAttributedString(
                     if preserveCustomEmoji(fileId, file) {
                         piece.addAttribute(ChatTextInputAttributes.customEmoji, value: ChatTextInputTextCustomEmojiAttribute(interactivelySelectedFromPackId: nil, fileId: fileId, file: file, enableAnimation: enableAnimation), range: range)
                     }
+                case .some(.button(_)):
+                    // A button run is an atom whose only carrying-run text is a bare `U+FFFC` (the label lives
+                    // inside the button, see `ChatInputInlineEntity.button`). The plain text/entities send path
+                    // cannot carry a button and the canonical fast conversion deliberately does not emit the
+                    // placeholder (`ChatInputContentInstantPage`), so drop the atom text here to keep a stray
+                    // service character out of the message body; structured content goes via the InstantPage path.
+                    piece.deleteCharacters(in: NSRange(location: 0, length: piece.length))
                 case nil:
                     break
                 }
@@ -227,7 +247,12 @@ public func entityPreservingFallbackAttributedString(
                     }
                     appendParagraph(rowText, blockAttribute: inheritedBlockAttribute)
                 }
-            }
+            case .details, .buttonRow:
+                // Off the flat axis per the model (`plainText` emits nothing for these): a detail block's title/
+                // content and a button row are not expressible on the plain text/entities send path — a stray
+                // `U+FFFC` would leak for a button, and a details block has no flat-axis text at all. Structured
+                // content is carried by the InstantPage path; this fallback flattens only flat-axis blocks.
+                break
         }
     }
 
