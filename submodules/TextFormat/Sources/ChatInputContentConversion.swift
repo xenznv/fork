@@ -247,6 +247,7 @@ public func entityPreservingFallbackAttributedString(
                     }
                     appendParagraph(rowText, blockAttribute: inheritedBlockAttribute)
                 }
+            }
             case .details, .buttonRow:
                 // Off the flat axis per the model (`plainText` emits nothing for these): a detail block's title/
                 // content and a button row are not expressible on the plain text/entities send path — a stray
