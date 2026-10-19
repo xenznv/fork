@@ -247,13 +247,13 @@ public func entityPreservingFallbackAttributedString(
                     }
                     appendParagraph(rowText, blockAttribute: inheritedBlockAttribute)
                 }
-            }
             case .details, .buttonRow:
                 // Off the flat axis per the model (`plainText` emits nothing for these): a detail block's title/
                 // content and a button row are not expressible on the plain text/entities send path — a stray
                 // `U+FFFC` would leak for a button, and a details block has no flat-axis text at all. Structured
                 // content is carried by the InstantPage path; this fallback flattens only flat-axis blocks.
                 break
+            }
         }
     }
 
