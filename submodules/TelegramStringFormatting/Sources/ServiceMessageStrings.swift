@@ -1944,6 +1944,14 @@ public func universalServiceMessageString(presentationData: (PresentationTheme, 
                         attributedString = NSAttributedString(string: rawText, font: titleFont, textColor: primaryTextColor)
                     }
                 }
+            case let .gramTransfer(amount, peerAddress, transactionId, comment, commentEncrypted):
+                // Exotic TON/wallet actions have no localized notification strings; like `.unknown`,
+                // they render as empty (they carry their own detail views in the chat).
+                attributedString = NSAttributedString(string: "", font: titleFont, textColor: primaryTextColor)
+            case .joinedViaCommunity:
+                attributedString = NSAttributedString(string: "", font: titleFont, textColor: primaryTextColor)
+            case .walletTonConnectRequest:
+                attributedString = NSAttributedString(string: "", font: titleFont, textColor: primaryTextColor)
             case .unknown:
                 attributedString = nil
             }

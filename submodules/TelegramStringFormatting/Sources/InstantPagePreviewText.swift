@@ -255,7 +255,7 @@ extension InstantPageBlock {
             // Document blocks in a text preview show only their caption; the document body
             // itself renders in the full instant page view. `document` is an editor-only
             // block, so there is no localized preview string for it.
-            return caption.previewAttributedText(strings: strings)
+            return caption.text.previewAttributedText(strings: strings)
         case let .buttonRow(_, buttons):
             // A button row preview flattens to the buttons' labels separated by spaces.
             let result = NSMutableAttributedString()
