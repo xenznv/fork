@@ -137,8 +137,12 @@ extension RichText {
             )
         case let .textCustomEmoji(_, alt):
             return NSAttributedString(string: alt)
-        case let .textAutoEmail(value), let .textAutoPhone(value), let .textAutoUrl(value), let .textBankCard(value), let .textBotCommand(value), let .textCashtag(value), let .textHashtag(value), let .textMention(value), let .textMentionName(value, _), let .textSpoiler(value), let .textDate(value, _, _):
+        case let .textAutoEmail(value), let .textAutoPhone(value), let .textAutoUrl(value), let .textBankCard(value), let .textBotCommand(value), let .textCashtag(value), let .textHashtag(value), let .textMention(value), let .textMentionName(value, _), let .textSpoiler(value), let .textDate(value, _, _), let .textTonAddress(value):
             return value.previewAttributedText(strings: strings)
+        case let .textButton(button):
+            // A button preview shows its label text — the tappable action is not representable
+            // in a static preview; the full renderer draws the pill itself.
+            return button.text.previewAttributedText(strings: strings)
         }
     }
 
@@ -247,6 +251,21 @@ extension InstantPageBlock {
             )
         case .map:
             return NSAttributedString(string: strings.Message_Location)
+        case let .document(_, caption):
+            // Document blocks in a text preview show only their caption; the document body
+            // itself renders in the full instant page view. `document` is an editor-only
+            // block, so there is no localized preview string for it.
+            return caption.previewAttributedText(strings: strings)
+        case let .buttonRow(_, buttons):
+            // A button row preview flattens to the buttons' labels separated by spaces.
+            let result = NSMutableAttributedString()
+            for button in buttons {
+                if result.length != 0 {
+                    result.append(NSAttributedString(string: " "))
+                }
+                result.append(button.text.previewAttributedText(strings: strings))
+            }
+            return result
         }
     }
 
