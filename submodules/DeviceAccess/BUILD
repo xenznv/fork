@@ -15,6 +15,7 @@ swift_library(
         "//submodules/Display:Display",
         "//submodules/AccountContext:AccountContext",
         "//submodules/TelegramPresentationData:TelegramPresentationData",
+        "//submodules/LocalAuth:LocalAuth",
         "//submodules/LegacyComponents:LegacyComponents",
     ],
     visibility = [
