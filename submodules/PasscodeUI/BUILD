@@ -20,6 +20,8 @@ swift_library(
         "//submodules/LocalAuth:LocalAuth",
         "//submodules/LegacyComponents:LegacyComponents",
         "//submodules/TelegramStringFormatting:TelegramStringFormatting",
+        "//submodules/PresentationDataUtils:PresentationDataUtils",
+
         "//submodules/ImageBlur:ImageBlur",
         "//submodules/AppBundle:AppBundle",
         "//submodules/PasscodeInputFieldNode:PasscodeInputFieldNode",
