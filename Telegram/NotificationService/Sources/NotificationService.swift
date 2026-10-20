@@ -771,12 +771,6 @@ private final class NotificationServiceHandler {
         //debug_linker_fail_test()
         self.queue = queue
 
-        // In the extension, database BEGIN/COMMIT/step failures must crash (the system then
-        // falls back to displaying the unmodified push) instead of failing silently: silent
-        // failures under cross-process lock contention produce non-atomic writes and pin the
-        // account state, turning the difference polling loop into an infinite livelock.
-        setValueBoxStrictErrorHandling(true)
-
         guard let appBundleIdentifier = Bundle.main.bundleIdentifier, let lastDotRange = appBundleIdentifier.range(of: ".", options: [.backwards]) else {
             return nil
         }
@@ -848,7 +842,7 @@ private final class NotificationServiceHandler {
         if let data = try? Data(contentsOf: URL(fileURLWithPath: appLockStatePath(rootPath: rootPath))), let state = try? JSONDecoder().decode(LockState.self, from: data), isAppLocked(state: state) {
             if let notificationsPresentationData = try? Data(contentsOf: URL(fileURLWithPath: notificationsPresentationDataPath(rootPath: rootPath))), let notificationsPresentationDataValue = try? JSONDecoder().decode(NotificationsPresentationData.self, from: notificationsPresentationData) {
                 isLockedMessage = notificationsPresentationDataValue.applicationLockedMessageString
-                isLockedStoryMessage = notificationsPresentationDataValue.applicationLockedStoryString ?? notificationsPresentationDataValue.applicationLockedMessageString
+                isLockedStoryMessage = notificationsPresentationDataValue.applicationLockedMessageString
             } else {
                 isLockedMessage = "You have a new message"
                 isLockedStoryMessage = "You have a new story"
