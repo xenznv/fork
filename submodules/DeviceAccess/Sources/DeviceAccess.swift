@@ -226,7 +226,7 @@ public final class DeviceAccess {
                 }
             case .location:
                 return Signal { subscriber in
-                    let status = CLLocationManager.authorizationStatus()
+                    let status = CLLocationManager().authorizationStatus
                     switch status {
                         case .authorizedAlways, .authorizedWhenInUse:
                             subscriber.putNext(.allowed)
@@ -445,7 +445,7 @@ public final class DeviceAccess {
                         })
                     }
                 case let .location(locationSubject):
-                    let status = CLLocationManager.authorizationStatus()
+                    let status = CLLocationManager().authorizationStatus
                     let hasPreciseLocation: Bool
                     if #available(iOS 14.0, *) {
                         if case .fullAccuracy = CLLocationManager().accuracyAuthorization {
