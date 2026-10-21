@@ -25,7 +25,7 @@ func getCurrentViewInterfaceOrientation(view: UIView) -> UIInterfaceOrientation 
             }
         }
     } else {
-        orientation = UIApplication.shared.statusBarOrientation
+        orientation = view.window?.windowScene?.interfaceOrientation ?? .portrait
     }
     return orientation
 }

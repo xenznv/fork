@@ -264,9 +264,11 @@ private class ApplicationStatusBarHost: StatusBarHost {
             return UIApplication.shared.internalGetKeyboard()
         }
         
-        for window in UIApplication.shared.windows {
-            if isKeyboardWindow(window: window) {
-                return window
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+                if isKeyboardWindow(window: window) {
+                    return window
+                }
             }
         }
         return nil

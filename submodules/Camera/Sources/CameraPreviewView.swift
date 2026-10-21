@@ -49,12 +49,7 @@ public class CameraSimplePreviewView: UIView {
         guard self.videoPreviewLayer.connection?.isVideoOrientationSupported == true else {
             return
         }
-        let statusBarOrientation: UIInterfaceOrientation
-        if #available(iOS 13.0, *) {
-            statusBarOrientation = UIApplication.shared.windows.first?.windowScene?.interfaceOrientation ?? .portrait
-        } else {
-            statusBarOrientation = UIApplication.shared.statusBarOrientation
-        }
+        let statusBarOrientation = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.interfaceOrientation ?? .portrait
         let videoOrientation = statusBarOrientation.videoOrientation
         self.videoPreviewLayer.connection?.videoOrientation = videoOrientation
         self.videoPreviewLayer.removeAllAnimations()
