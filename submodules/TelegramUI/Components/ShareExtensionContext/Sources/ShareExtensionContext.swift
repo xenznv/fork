@@ -622,9 +622,9 @@ public class ShareRootControllerImpl {
                         var canSendInHighQuality = false
                         if let inputItems = self?.getExtensionContext()?.inputItems, inputItems.count == 1, let item = inputItems[0] as? NSExtensionItem, let attachments = item.attachments {
                             for attachment in attachments {
-                                if attachment.hasItemConformingToTypeIdentifier(kUTTypeImage as String) {
+                                if attachment.hasItemConformingToTypeIdentifier("public.image") {
                                     canSendInHighQuality = true
-                                } else if attachment.hasItemConformingToTypeIdentifier(kUTTypeMovie as String) {
+                                } else if attachment.hasItemConformingToTypeIdentifier("public.movie") {
                                 } else {
                                     canShareToStory = false
                                 }
@@ -648,9 +648,9 @@ public class ShareRootControllerImpl {
                                     
                                     for attachment in attachments {
                                         let fileIndex = index
-                                        if attachment.hasItemConformingToTypeIdentifier(kUTTypeImage as String) {
+                                        if attachment.hasItemConformingToTypeIdentifier("public.image") {
                                             dispatchGroup.enter()
-                                            attachment.loadFileRepresentation(forTypeIdentifier: kUTTypeImage as String, completionHandler: { url, _ in
+                                            attachment.loadFileRepresentation(forTypeIdentifier: "public.image", completionHandler: { url, _ in
                                                 if let url, let imageData = try? Data(contentsOf: url) {
                                                     let filePath = storiesPath + "/\(fileIndex).jpg"
                                                     try? FileManager.default.removeItem(atPath: filePath)
@@ -663,9 +663,9 @@ public class ShareRootControllerImpl {
                                                 }
                                                 dispatchGroup.leave()
                                             })
-                                        } else if attachment.hasItemConformingToTypeIdentifier(kUTTypeMovie as String) {
+                                        } else if attachment.hasItemConformingToTypeIdentifier("public.movie") {
                                             dispatchGroup.enter()
-                                            attachment.loadFileRepresentation(forTypeIdentifier: kUTTypeMovie as String, completionHandler: { url, _ in
+                                            attachment.loadFileRepresentation(forTypeIdentifier: "public.movie", completionHandler: { url, _ in
                                                 if let url {
                                                     let filePath = storiesPath + "/\(fileIndex).mp4"
                                                     try? FileManager.default.removeItem(atPath: filePath)
@@ -720,8 +720,8 @@ public class ShareRootControllerImpl {
                     
                     if let strongSelf = self, let inputItems = strongSelf.getExtensionContext()?.inputItems, inputItems.count == 1, let item = inputItems[0] as? NSExtensionItem, let attachments = item.attachments {
                         for attachment in attachments {
-                            if attachment.hasItemConformingToTypeIdentifier(kUTTypeFileURL as String) {
-                                attachment.loadItem(forTypeIdentifier: kUTTypeFileURL as String, completionHandler: { result, error in
+                            if attachment.hasItemConformingToTypeIdentifier("public.file-url") {
+                                attachment.loadItem(forTypeIdentifier: "public.file-url", completionHandler: { result, error in
                                     Queue.mainQueue().async {
                                         guard let url = result as? URL, url.isFileURL else {
                                             beginShare()

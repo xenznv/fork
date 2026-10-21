@@ -10109,7 +10109,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
 
     @available(iOSApplicationExtension 11.0, iOS 11.0, *)
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
-        return session.hasItemsConforming(toTypeIdentifiers: [kUTTypeImage as String])
+        return session.hasItemsConforming(toTypeIdentifiers: ["public.image"])
     }
 
     @available(iOSApplicationExtension 11.0, iOS 11.0, *)

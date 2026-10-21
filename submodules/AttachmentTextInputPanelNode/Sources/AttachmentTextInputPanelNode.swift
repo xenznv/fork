@@ -2299,7 +2299,7 @@ public class AttachmentTextInputPanelNode: ASDisplayNode, TGCaptionPanelView, AS
         let pasteboard = UIPasteboard.general
 
         var attributedString: NSAttributedString?
-        if let data = pasteboard.data(forPasteboardType: kUTTypeRTF as String) {
+        if let data = pasteboard.data(forPasteboardType: "public.rtf") {
             attributedString = chatInputStateStringFromRTF(data, type: NSAttributedString.DocumentType.rtf)
         } else if let data = pasteboard.data(forPasteboardType: "com.apple.flat-rtfd") {
             attributedString = chatInputStateStringFromRTF(data, type: NSAttributedString.DocumentType.rtfd)

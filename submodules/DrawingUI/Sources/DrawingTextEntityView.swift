@@ -107,22 +107,22 @@ public final class DrawingTextEntityView: DrawingEntityView, UITextViewDelegate 
         var animatedImageData: Data?
         for item in pasteboard.items {
             print(item.keys)
-            if let data = item["public.heics"] as? Data, let image = item[kUTTypePNG as String] as? UIImage {
+            if let data = item["public.heics"] as? Data, let image = item["public.png"] as? UIImage {
                 animatedImageData = data
                 images.append(image)
             } else if let imageData = item["com.apple.png-sticker"] as? Data, let image = UIImage(data: imageData) {
                 images.append(image)
                 isPNG = true
                 isMemoji = true
-            } else if let image = item[kUTTypePNG as String] as? UIImage {
+            } else if let image = item["public.png"] as? UIImage {
                 images.append(image)
                 isPNG = true
             } else if let image = item["com.apple.uikit.image"] as? UIImage {
                 images.append(image)
                 isPNG = true
-            } else if let image = item[kUTTypeJPEG as String] as? UIImage {
+            } else if let image = item["public.jpeg"] as? UIImage {
                 images.append(image)
-            } else if let image = item[kUTTypeGIF as String] as? UIImage {
+            } else if let image = item["public.gif"] as? UIImage {
                 images.append(image)
             }
         }

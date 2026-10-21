@@ -149,7 +149,7 @@ private final class SpotlightIndexStorage {
                 
                 let itemDataPath = path + "/data.json"
                 
-                let attributeSet = CSSearchableItemAttributeSet(itemContentType: kUTTypeText as String)
+                let attributeSet = CSSearchableItemAttributeSet(itemContentType: "public.text")
                 attributeSet.version = "\(UInt64.random(in: 0 ..< UInt64.max))"
                 if !item.firstName.isEmpty && !item.lastName.isEmpty {
                     attributeSet.title = "\(item.firstName) \(item.lastName)"
