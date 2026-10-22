@@ -1231,6 +1231,8 @@
 "PasscodeSettings.TurnPasscodeOn" = "Turn Passcode On";
 "PasscodeSettings.TurnPasscodeOff" = "Turn Passcode Off";
 "PasscodeSettings.ChangePasscode" = "Change Passcode";
+"PasscodeSettings.UpdateError" = "Couldn't update the passcode. Unlock again and try once more.";
+"PasscodeSettings.VerificationError" = "Couldn't verify the passcode. Please try again.";
 "PasscodeSettings.Help" = "When you set up an additional passcode, a lock icon will appear on the chats page. Tap it to lock and unlock the app.\n\nNote: if you forget the passcode, you'll need to delete and reinstall the app. All secret chats will be lost.";
 "PasscodeSettings.UnlockWithTouchId" = "Unlock with Touch ID";
 "PasscodeSettings.SimplePasscode" = "Simple Passcode";

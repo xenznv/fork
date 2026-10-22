@@ -905,12 +905,16 @@ public enum CreateGroupMode {
 }
 
 public protocol AppLockContext: AnyObject {
+    var isPasscodeLocked: Signal<Bool, NoError> { get }
     var invalidAttempts: Signal<AccessChallengeAttempts?, NoError> { get }
     var autolockDeadline: Signal<Int32?, NoError> { get }
     
     func lock()
     func unlock()
+    
+    func beginBiometricAuthentication() -> Disposable
     func failedUnlockAttempt()
+    func _internalCrashForPasscodeMigrationTest(isLocked: Bool) throws -> Never
 }
 
 public protocol RecentSessionsController: AnyObject {
