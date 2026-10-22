@@ -39,7 +39,9 @@ struct DiamondStyle: Equatable {
     var widthPoints: Float = 0
     var starOpacity: Float = 1
     var starZoom: Float = 1
+    var starReferenceSize: Float = 0 // Fixed shorter canvas side in points; zero follows the canvas.
     var starEmission: Float = 1
+    var rightwardStars: Bool = false
     var burstSize: Float = 1
     var burstFadeInDuration: Float = 0.5
     var steadyStars: Bool = true
@@ -61,7 +63,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         private lazy var hdrPipelineState: MTLRenderPipelineState? = {
             let descriptor = self.descriptor.copy() as! MTLRenderPipelineDescriptor
             descriptor.colorAttachments[0].pixelFormat = .rgba16Float
-            return try? self.device.makeRenderPipelineState(descriptor: descriptor)
+            return MetalEngine.shared.pipelineCache.makeRenderPipelineState(descriptor: descriptor)
         }()
 
         func pipelineState(for pixelFormat: RenderLayerSpec.PixelFormat) -> MTLRenderPipelineState? {
@@ -83,7 +85,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
             descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
             descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
             descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
-            guard let pipelineState = try? device.makeRenderPipelineState(descriptor: descriptor) else {
+            guard let pipelineState = MetalEngine.shared.pipelineCache.makeRenderPipelineState(descriptor: descriptor) else {
                 return nil
             }
             self.pipelineState = pipelineState
@@ -144,8 +146,19 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     var onHold: ((Bool) -> Void)?
     var onPoseUpdated: ((DiamondPose) -> Void)?
     var scrollTiltProvider: ((CFTimeInterval) -> Float)?
+    var externalMotion: ((CFTimeInterval?) -> (rotation: Float, isAnimating: Bool))? {
+        didSet {
+            guard self.externalMotion != nil || oldValue != nil else { return }
+            let _ = oldValue?(nil)
+            self.displayLink?.invalidate()
+            self.displayLink = nil
+            self.requestExternalMotionUpdate()
+        }
+    }
+    private var externalMotionIsAnimating = false
     var lightBackground = false
     var interactionScale: Float = 1
+    var starOffset: CGPoint = .zero
     var refractionSource: InteractiveDiamondComponent.RefractionSource?
     var refractionStrength: Float = 0
     var onRefractionUpdated: ((InteractiveDiamondComponent.RefractionGeometry?) -> Void)?
@@ -185,6 +198,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
     private var isSendingTransfer = false
     private var transferAnimation: DiamondTransferAnimation?
+    private var receivingTransfer: (startTime: CFTimeInterval, completionDelay: Float)?
 
     var hasTransferAnimation: Bool {
         return !self.reduceMotion && self.transferAnimation != nil
@@ -199,7 +213,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     var animationState: (time: Float, transferEnergy: Float?)? {
-        guard self.isInHierarchy, self.isApplicationActive, self.isRenderingEnabled, !self.reduceMotion else {
+        guard self.isInHierarchy, self.isApplicationInForeground, self.isRenderingEnabled, !self.reduceMotion else {
             return nil
         }
         return (self.elapsed, self.transferAnimation?.presentation(at: self.elapsed).energy)
@@ -241,7 +255,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     var pose: DiamondPose {
-        return DiamondPose(yaw: self.motion.yaw + self.motion.lean, pitch: self.motion.pitch,
+        return DiamondPose(yaw: self.motion.renderedYaw, pitch: self.motion.pitch,
             grow: self.grow * self.interactionScale, shift: self.diamondStyle.growShift * (self.grow * self.interactionScale - 1))
     }
 
@@ -267,7 +281,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     private var elapsed: Float = 0
     private var lastTime: CFTimeInterval?
     private var displayLink: SharedDisplayLinkDriver.Link?
-    private var isApplicationActive = UIApplication.shared.applicationState == .active
+    private var isApplicationInForeground = UIApplication.shared.applicationState != .background
     private var reduceMotion = false
     private var didAnimateAppearance = false
     private var didSetReady = false
@@ -294,8 +308,8 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         self.didExitHierarchy = { [weak self] in
             self?.updateAnimationState()
         }
-        NotificationCenter.default.addObserver(self, selector: #selector(self.applicationDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(self.applicationWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(self.applicationWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(self.applicationDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
         //NotificationCenter.default.addObserver(self, selector: #selector(self.reduceMotionChanged), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
     }
 
@@ -310,6 +324,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
             self.grow = layer.grow
             self.growVelocity = layer.growVelocity
             self.interactionScale = layer.interactionScale
+            self.starOffset = layer.starOffset
             self.refractionSource = layer.refractionSource
             self.refractionStrength = layer.refractionStrength
             self.highlightBoost = layer.highlightBoost
@@ -338,7 +353,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         NotificationCenter.default.removeObserver(self)
     }
 
-    func update(style: DiamondStyle) {
+    func update(style: DiamondStyle, preservingMotion: Bool = false) {
         guard self.diamondStyle != style else { return }
         if self.lastTime != nil {
             self.updateMotion(at: CACurrentMediaTime())
@@ -348,10 +363,13 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         if !style.tapToSpin {
             self.cancelTapSpin()
         }
-        if !style.backgroundStars && !self.isCompletingTransfer {
+        if style.starOpacity <= 0.001 {
+            self.starBursts.removeAll()
+        } else if !style.backgroundStars && !self.isCompletingTransfer {
             self.starBursts.removeAll(where: { !$0.isFromTap })
         }
-        if previous.animationMode != style.animationMode || previous.referenceAnimationLoops != style.referenceAnimationLoops {
+        let modeChanged = previous.animationMode != style.animationMode || previous.referenceAnimationLoops != style.referenceAnimationLoops
+        if modeChanged && !preservingMotion {
             self.resetAnimation()
         } else {
             self.updateMotionStyle()
@@ -359,6 +377,9 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
                 self.motion.changeReferenceAppearance(from: previous.appearance, to: style.appearance, time: self.elapsed)
             }
             self.onPoseUpdated?(self.pose)
+            if modeChanged {
+                self.updateAnimationState()
+            }
             self.setNeedsUpdate()
         }
     }
@@ -374,8 +395,10 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
 
     func resetAnimation() {
         let wasDragging = self.motion.isDragging
+        let externalYaw = self.motion.externalYaw
         self.cancelTapSpin()
         self.motion = DiamondMotion()
+        self.motion.externalYaw = externalYaw
         self.updateMotionStyle()
         self.grow = 1
         self.growVelocity = 0
@@ -390,7 +413,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     func spin(_ velocity: Float, decay: Float = 0.7) {
-        guard self.isInHierarchy, self.isApplicationActive, self.isRenderingEnabled,
+        guard self.isInHierarchy, self.isApplicationInForeground, self.isRenderingEnabled,
               !self.reduceMotion, !UIAccessibility.isReduceMotionEnabled else { return }
         self.updateMotion(at: CACurrentMediaTime())
         self.motion.spin(velocity, decay: decay)
@@ -398,7 +421,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     func pushFromBelow(strength: Float) {
-        guard self.isInHierarchy, self.isApplicationActive, self.isRenderingEnabled,
+        guard self.isInHierarchy, self.isApplicationInForeground, self.isRenderingEnabled,
               !self.reduceMotion, !UIAccessibility.isReduceMotionEnabled else { return }
         self.updateMotion(at: CACurrentMediaTime())
         self.motion.pushFromBelow(strength: strength)
@@ -406,7 +429,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     func emitStarBurst() {
-        guard self.diamondStyle.backgroundStars, self.isInHierarchy, self.isApplicationActive, self.isRenderingEnabled,
+        guard self.diamondStyle.backgroundStars, self.isInHierarchy, self.isApplicationInForeground, self.isRenderingEnabled,
               !self.reduceMotion, !UIAccessibility.isReduceMotionEnabled else { return }
         self.updateMotion(at: CACurrentMediaTime())
         self.addStarBurst()
@@ -423,7 +446,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         self.cancelTransferCompletion()
         if isSending {
             self.transferAnimation = DiamondTransferAnimation(phase: .sending, startTime: self.elapsed)
-        } else if animateCompletion && self.isInHierarchy && self.isApplicationActive && self.isRenderingEnabled
+        } else if animateCompletion && self.isInHierarchy && self.isApplicationInForeground && self.isRenderingEnabled
             && !self.reduceMotion && !UIAccessibility.isReduceMotionEnabled {
             self.transferAnimation = DiamondTransferAnimation(phase: .completion, startTime: self.elapsed)
             self.motion.spin(self.diamondStyle.rotationSpeed < 0 ? -11 : 11, decay: 0.7)
@@ -437,20 +460,42 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         self.setNeedsUpdate()
     }
 
+    func beginReceivingTransfer(at startTime: CFTimeInterval, completionDelay: Float) {
+        self.cancelTapSpin()
+        self.cancelTransferCompletion()
+        self.receivingTransfer = (startTime, completionDelay)
+        self.updateMotion(at: CACurrentMediaTime())
+        self.setNeedsUpdate()
+    }
+
+    func endReceivingTransfer() {
+        guard let receiving = self.receivingTransfer else { return }
+        if CACurrentMediaTime() - receiving.startTime >= Double(receiving.completionDelay + DiamondTransferAnimation.completionDuration) {
+            self.receivingTransfer = nil
+            self.transferAnimation = nil
+            self.starBursts.removeAll(where: { !$0.isFromTap })
+        } else {
+            self.cancelTransferCompletion()
+        }
+        self.onPoseUpdated?(self.pose)
+        self.setNeedsUpdate()
+    }
+
     private func cancelTransferCompletion() {
-        guard self.transferAnimation?.phase == .completion else { return }
+        guard self.transferAnimation?.phase == .completion || self.receivingTransfer != nil else { return }
+        self.receivingTransfer = nil
         self.transferAnimation = nil
         self.starBursts.removeAll()
         self.motion.stopSpin()
     }
 
-    @objc private func applicationDidBecomeActive() {
-        self.isApplicationActive = true
+    @objc private func applicationWillEnterForeground() {
+        self.isApplicationInForeground = true
         self.updateAnimationState()
     }
 
-    @objc private func applicationWillResignActive() {
-        self.isApplicationActive = false
+    @objc private func applicationDidEnterBackground() {
+        self.isApplicationInForeground = false
         self.updateAnimationState()
     }
 
@@ -465,20 +510,38 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         self.updateAnimationState()
     }
 
+    private func updateExternalMotion(at time: CFTimeInterval?) {
+        let result = self.externalMotion?(time)
+        self.motion.externalYaw = time == nil ? 0.0 : result?.rotation ?? 0.0
+        self.externalMotionIsAnimating = time != nil && result?.isAnimating == true
+    }
+
+    func requestExternalMotionUpdate() {
+        // A running link samples the latest input once on its next frame.
+        guard self.displayLink == nil else { return }
+        self.updateAnimationState()
+        self.onPoseUpdated?(self.pose)
+    }
+
     private func updateAnimationState() {
-        let isVisible = self.isInHierarchy && self.isApplicationActive && self.isRenderingEnabled
+        let isVisible = self.isInHierarchy && self.isApplicationInForeground && self.isRenderingEnabled
+        if !isVisible || self.reduceMotion {
+            self.updateExternalMotion(at: nil)
+        } else if self.displayLink == nil {
+            self.updateExternalMotion(at: CACurrentMediaTime())
+        }
         if isVisible && self.diamondStyle.animateOnAppear && !self.didAnimateAppearance {
             self.didAnimateAppearance = true
             if !self.reduceMotion && !UIAccessibility.isReduceMotionEnabled {
                 self.motion.pushFromBelow()
             }
         }
-        if isVisible && !self.reduceMotion && (!self.hasCompletedReferenceAnimation || self.motion.isAppearanceImpulseActive) {
+        if isVisible && !self.reduceMotion && (!self.hasCompletedReferenceAnimation || self.motion.isAppearanceImpulseActive || self.externalMotionIsAnimating) {
             if self.displayLink == nil {
-                self.displayLink = SharedDisplayLinkDriver.shared.add(framesPerSecond: self.usesHighFrameRate ? .max : .fps(60), { [weak self] _ in
+                self.displayLink = SharedDisplayLinkDriver.shared.add(framesPerSecond: self.usesHighFrameRate || self.externalMotion != nil ? .max : .fps(60), { [weak self] _ in
                     guard let self else { return }
                     self.updateMotion(at: CACurrentMediaTime())
-                    if self.hasCompletedReferenceAnimation && !self.motion.isAppearanceImpulseActive {
+                    if self.hasCompletedReferenceAnimation && !self.motion.isAppearanceImpulseActive && !self.externalMotionIsAnimating {
                         self.updateAnimationState()
                     }
                     self.setNeedsUpdate()
@@ -510,6 +573,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     private func updateMotion(at time: CFTimeInterval) {
+        self.updateExternalMotion(at: self.isInHierarchy && self.isApplicationInForeground && self.isRenderingEnabled && !self.reduceMotion ? time : nil)
         let dt = Float(self.lastTime.map { min(max(0, time - $0), 0.05) } ?? 0)
         self.lastTime = time
         var animationDt = dt
@@ -518,6 +582,23 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         }
         if !self.reduceMotion {
             self.elapsed += animationDt
+        }
+        if let receiving = self.receivingTransfer {
+            let t = Float(max(0.0, time - receiving.startTime))
+            let completionTime = t - receiving.completionDelay
+            if completionTime >= DiamondTransferAnimation.completionDuration {
+                self.receivingTransfer = nil
+                self.transferAnimation = nil
+                self.starBursts.removeAll(where: { !$0.isFromTap })
+            } else {
+                let phase: DiamondTransferAnimation.Phase = completionTime >= 0 ? .completion : .receiving
+                let didComplete = phase == .completion && self.transferAnimation?.phase != .completion
+                self.transferAnimation = DiamondTransferAnimation(phase: phase, startTime: self.elapsed - (phase == .completion ? completionTime : t))
+                if didComplete {
+                    self.motion.spin((self.diamondStyle.rotationSpeed < 0 ? -11 : 11) * exp(-completionTime / 0.7), decay: 0.7)
+                    self.addStarBurst(at: self.elapsed - completionTime)
+                }
+            }
         }
         if let animation = self.transferAnimation, animation.phase == .completion,
            self.elapsed - animation.startTime >= DiamondTransferAnimation.completionDuration {
@@ -528,7 +609,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
         let style = self.effectiveStyle
         self.motion.swayScale = style.swayScale
         let scrollTilt: Float
-        if self.isInHierarchy && self.isApplicationActive && self.isRenderingEnabled && !self.reduceMotion {
+        if self.isInHierarchy && self.isApplicationInForeground && self.isRenderingEnabled && !self.reduceMotion {
             scrollTilt = self.scrollTiltProvider?(time) ?? 0.0
         } else {
             scrollTilt = 0.0
@@ -567,7 +648,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
 
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended, let view = gesture.view,
-              self.isInHierarchy, self.isApplicationActive, self.isRenderingEnabled, !self.motion.isDragging,
+              self.isInHierarchy, UIApplication.shared.applicationState == .active, self.isRenderingEnabled, !self.motion.isDragging,
               !self.reduceMotion, !UIAccessibility.isReduceMotionEnabled else { return }
         let point = gesture.location(in: view)
         let horizontalOffset = point.x - view.bounds.midX
@@ -591,6 +672,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     private func addStarBurst(at time: Float? = nil, isFromTap: Bool = false) {
+        guard self.diamondStyle.starOpacity > 0.001 else { return }
         guard self.diamondStyle.backgroundStars || self.isCompletingTransfer || (isFromTap && self.diamondStyle.tapToSpin) else { return }
         if self.starBursts.count >= 3 {
             self.starBursts.removeFirst()
@@ -624,7 +706,6 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
     }
 
     @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
-        guard self.isInHierarchy && self.isApplicationActive && self.isRenderingEnabled else { return }
         self.updateDrag(
             state: gesture.state,
             translation: gesture.translation(in: gesture.view),
@@ -641,7 +722,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
 
     func updateDrag(state: UIGestureRecognizer.State, translation: CGPoint = .zero, velocity: CGPoint = .zero, scale: CGFloat = 100.0, releaseImpulse: Float? = nil, playFlingHaptic: Bool = true, allowsFlingBurst: Bool = false, tapSpinDirection: Float? = nil) {
         if state != .cancelled && state != .failed {
-            guard self.isInHierarchy && self.isApplicationActive && self.isRenderingEnabled else { return }
+            guard self.isInHierarchy && UIApplication.shared.applicationState == .active && self.isRenderingEnabled else { return }
         }
         let now = CACurrentMediaTime()
         self.updateMotion(at: now)
@@ -712,12 +793,13 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
 
     func update(context: MetalEngineSubjectContext) {
         let canvasSize = self.renderSize ?? self.bounds.size
-        guard self.isInHierarchy, self.isApplicationActive, self.isRenderingEnabled, canvasSize.width > 0.0, canvasSize.height > 0.0 else { return }
+        guard self.isInHierarchy, self.isApplicationInForeground, self.isRenderingEnabled, canvasSize.width > 0.0, canvasSize.height > 0.0 else { return }
         let pixelsPerPoint = UIScreen.main.scale
         let size = RenderSize(width: Int(ceil(canvasSize.width * pixelsPerPoint)), height: Int(ceil(canvasSize.height * pixelsPerPoint)))
         let motion = self.motion
         let time = self.elapsed
         let starBursts = self.starBursts
+        let starOffset = self.starOffset
         let reduceMotion = self.reduceMotion
         let lightBackground = self.lightBackground
         let style = self.effectiveStyle
@@ -757,7 +839,7 @@ final class InteractiveDiamondLayer: MetalEngineSubjectLayer, MetalEngineSubject
             pass.depthAttachment.clearDepth = 1
             pass.depthAttachment.storeAction = .dontCare
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return nil }
-            renderer.encode(encoder: encoder, size: CGSize(width: CGFloat(size.width), height: CGFloat(size.height)), time: time, starBursts: starBursts, motion: motion, style: style, grow: grow, pixelsPerPoint: Float(pixelsPerPoint), reduceMotion: reduceMotion, lightBackground: lightBackground, refractionSource: refractionSource, refractionStrength: refractionStrength, highlightBoost: highDynamicRange ? highlightBoost : 0, colorPixelFormat: pixelFormat, refractionUpdated: self.onRefractionUpdated)
+            renderer.encode(encoder: encoder, size: CGSize(width: CGFloat(size.width), height: CGFloat(size.height)), time: time, starBursts: starBursts, starOffset: starOffset, motion: motion, style: style, grow: grow, pixelsPerPoint: Float(pixelsPerPoint), reduceMotion: reduceMotion, lightBackground: lightBackground, refractionSource: refractionSource, refractionStrength: refractionStrength, highlightBoost: highDynamicRange ? highlightBoost : 0, colorPixelFormat: pixelFormat, refractionUpdated: self.onRefractionUpdated)
             encoder.endEncoding()
             return RenderedFrame(texture: targets.color, commandBuffer: commandBuffer)
         })
