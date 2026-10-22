@@ -404,6 +404,8 @@ public func performMessageButtonAction(
         break
     case let .copyText(payload):
         controllerInteraction.copyText(payload)
+    case .disabled:
+        break
     }
 }
 

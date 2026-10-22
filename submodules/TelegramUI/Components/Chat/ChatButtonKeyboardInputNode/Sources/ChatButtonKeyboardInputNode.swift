@@ -446,6 +446,8 @@ public final class ChatButtonKeyboardInputNode: ChatInputNode, UIScrollViewDeleg
                     }
                 case let .copyText(payload):
                     self.controllerInteraction.copyText(payload)
+                case .disabled:
+                    break
             }
             if dismissIfOnce {
                 if let message = self.message {
