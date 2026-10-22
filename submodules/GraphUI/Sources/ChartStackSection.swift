@@ -15,18 +15,19 @@ private enum Constants {
     static let chartViewHeightFraction: CGFloat = 0.55
 }
 
-private class LeftAlignedIconButton: UIButton {
-    override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
-        var titleRect = super.titleRect(forContentRect: contentRect)
-        let imageSize = currentImage?.size ?? .zero
-        titleRect.origin.x = imageSize.width
-        return titleRect
-    }
-    
-    override func imageRect(forContentRect contentRect: CGRect) -> CGRect {
-        var imageRect = super.imageRect(forContentRect: contentRect)
-        imageRect.origin.x = 0.0
-        return imageRect
+private class LeftAlignedIconButton: UIButton {    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        let contentBounds = self.bounds
+        let imageSize = self.imageView?.image?.size ?? .zero
+        var titleRect = contentBounds
+        if imageSize.width > 0.0 {
+            var imageRect = CGRect(x: contentBounds.minX + 6.0, y: (contentBounds.height - imageSize.height) / 2.0, width: imageSize.width, height: imageSize.height)
+            imageRect.origin.x = min(imageRect.origin.x, contentBounds.maxX - imageRect.width)
+            self.imageView?.frame = imageRect
+            titleRect = CGRect(x: imageRect.maxX + 3.0, y: contentBounds.minY, width: contentBounds.maxX - (imageRect.maxX + 3.0), height: contentBounds.height)
+        }
+        self.titleLabel?.frame = titleRect
     }
 }
 
@@ -74,7 +75,6 @@ class ChartStackSection: UIView, ChartThemeContainer {
         backButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .regular)
         backButton.setTitleColor(UIColor(rgb: 0x0088ff), for: .normal)
         backButton.setImage(UIImage(bundleImageName: "Chart/arrow_left"), for: .normal)
-        backButton.imageEdgeInsets = UIEdgeInsets(top: 0.0, left: 6.0, bottom: 0.0, right: 3.0)
         backButton.imageView?.tintColor = UIColor(rgb: 0x0088ff)
         backButton.legacyAdjustsImageWhenHighlighted = false
         
