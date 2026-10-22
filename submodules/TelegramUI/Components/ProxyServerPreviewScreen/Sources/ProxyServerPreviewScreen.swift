@@ -314,7 +314,7 @@ private final class ProxyServerPreviewSheetContent: CombinedComponent {
                         )
                     ))
                 }
-            case .mtp:
+            case .mtp, .web:
                 tableItems.append(.init(
                     id: "secret",
                     title: strings.SocksProxySetup_Secret,
