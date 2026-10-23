@@ -218,9 +218,9 @@ jobs:
             # for the host; pin the target platform explicitly.
             EXTRA_ARGS="$EXTRA_ARGS --target ${{ inputs.target }}"
             if [ "${{ inputs.configuration }}" = "release_sim_arm64" ]; then
-              EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg --platforms=//build-system/bazel-utils/platforms:ios_sim_arm64"
+              EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg=--platforms=//build-system/bazel-utils/platforms:ios_sim_arm64"
             else
-              EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg --platforms=//build-system/bazel-utils/platforms:ios_arm64_device"
+              EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg=--platforms=//build-system/bazel-utils/platforms:ios_arm64_device"
             fi
             ARTIFACT_ARGS=""
           fi
