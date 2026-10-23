@@ -16,6 +16,14 @@ on:
         options:
           - release_arm64
           - release_sim_arm64
+      target:
+        description: 'Optional bazel target for a fast compile-only check (no IPA, e.g. //submodules/Display:Display). Leave empty for the full app build.'
+        type: string
+        default: ''
+      keepGoing:
+        description: 'Collect all compile errors in one run (--keep_going)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -199,6 +207,16 @@ jobs:
 
       - name: Build (self-signed, unsigned-for-device)
         run: |
+          EXTRA_ARGS=""
+          if [ "${{ inputs.keepGoing }}" != "false" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --continueOnError"
+          fi
+          ARTIFACT_ARGS="--outputBuildArtifactsPath build/artifacts"
+          if [ -n "${{ inputs.target }}" ]; then
+            # Fast mode: compile a single bazel target only (no IPA, no artifact collection).
+            EXTRA_ARGS="$EXTRA_ARGS --target ${{ inputs.target }}"
+            ARTIFACT_ARGS=""
+          fi
           mkdir -p build/artifacts
           python3 -u build-system/Make/Make.py \
             --overrideXcodeVersion \
@@ -208,9 +226,11 @@ jobs:
             --codesigningInformationPath build-input/fake-codesigning \
             --buildNumber 145 \
             --configuration "${{ inputs.configuration || 'release_arm64' }}" \
-            --outputBuildArtifactsPath build/artifacts
+            $EXTRA_ARGS \
+            $ARTIFACT_ARGS
 
       - name: Rename IPA and hash it
+        if: inputs.target == ''
         run: |
           mv build/artifacts/Telegram.ipa build/artifacts/app-unsigned.ipa
           shasum -a 256 build/artifacts/app-unsigned.ipa | tee build/artifacts/SHA256SUMS.txt
@@ -224,6 +244,7 @@ jobs:
           key: bazel-cache-macos-${{ steps.versions.outputs.bazel }}-${{ github.run_id }}
 
       - name: Upload unsigned IPA
+        if: inputs.target == ''
         uses: actions/upload-artifact@v4
         with:
           name: app-unsigned-ipa

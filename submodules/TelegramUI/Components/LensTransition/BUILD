@@ -25,6 +25,7 @@ swift_library(
         ":LensTransitionRuntime",
         "//submodules/Display",
         "//submodules/ComponentFlow",
+        "//submodules/UIKitRuntimeUtils",
         "//submodules/TelegramUI/Components/GlassBackgroundComponent",
     ],
     visibility = [
