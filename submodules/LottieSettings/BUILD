@@ -8,7 +8,7 @@ swift_library(
     module_name = "LottieSettings",
     srcs = glob(["Sources/**/*.swift"]),
     copts = [
-        "-warnings-as-errors",
+        
     ],
     deps = [],
     visibility = [

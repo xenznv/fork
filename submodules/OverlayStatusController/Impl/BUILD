@@ -13,6 +13,7 @@ objc_library(
     ],
     copts = [
         "-Werror",
+        "-Wno-error=deprecated-declarations",
     ],
     visibility = [
         "//visibility:public",

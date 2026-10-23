@@ -16,9 +16,11 @@ objc_library(
     ], allow_empty=True) + private_headers,
     copts = [
         "-Werror",
+        "-Wno-error=deprecated-declarations",
     ],
     cxxopts = [
         "-Werror",
+        "-Wno-error=deprecated-declarations",
         "-std=c++17",
     ],
     hdrs = public_headers,

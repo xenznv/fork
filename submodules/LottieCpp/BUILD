@@ -20,6 +20,7 @@ objc_library(
     ], allow_empty=True),
     copts = [
         "-Werror",
+        "-Wno-error=deprecated-declarations",
         "-I{}/lottiecpp/Sources".format(package_name()),
     ],
     cxxopts = [

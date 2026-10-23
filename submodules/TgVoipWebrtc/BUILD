@@ -164,6 +164,7 @@ objc_library(
         "-std=c++17",
         "-w",
         #"-Werror",
+        "-Wno-error=deprecated-declarations",
     ] + optimization_flags,
     includes = [
         "PublicHeaders",

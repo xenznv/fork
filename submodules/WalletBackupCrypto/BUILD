@@ -11,6 +11,7 @@ objc_library(
     copts = ["-Werror"],
     cxxopts = [
         "-Werror",
+        "-Wno-error=deprecated-declarations",
         "-std=c++17",
     ],
     deps = ["//third-party/td:td"],

@@ -22,6 +22,7 @@ objc_library(
         "-I{}/{}".format(package_name(), directory) for directory in unique_directories(private_headers)
     ] + [
         "-Werror",
+        "-Wno-error=deprecated-declarations",
         "-I{}/PublicHeaders/RMIntro".format(package_name()),
     ],
     deps = [

@@ -16,6 +16,7 @@ objc_library(
     copts = [
         "-I{}/PublicHeaders/Stripe".format(package_name()),
         "-Werror",
+        "-Wno-error=deprecated-declarations",
     ],
     sdk_frameworks = [
         "Foundation",

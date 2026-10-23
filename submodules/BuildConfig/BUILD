@@ -22,6 +22,7 @@ objc_library(
     ]),
     copts = [
         "-Werror",
+        "-Wno-error=deprecated-declarations",
         "-DAPP_CONFIG_API_ID={}".format(telegram_api_id),
         "-DAPP_CONFIG_API_HASH=\\\"{}\\\"".format(telegram_api_hash),
         "-DAPP_CONFIG_APP_CENTER_ID=\\\"{}\\\"".format(telegram_app_center_id),

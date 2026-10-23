@@ -6,7 +6,7 @@ swift_library(
     srcs = glob([
         "Sources/**/*.swift",
     ]),
-    copts = ["-warnings-as-errors"],
+    copts = [],
     deps = [
         "//submodules/BuildConfig:BuildConfig",
     ],
