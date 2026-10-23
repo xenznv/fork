@@ -214,7 +214,14 @@ jobs:
           ARTIFACT_ARGS="--outputBuildArtifactsPath build/artifacts"
           if [ -n "${{ inputs.target }}" ]; then
             # Fast mode: compile a single bazel target only (no IPA, no artifact collection).
+            # A bare library target has no apple configuration transition, so it would build
+            # for the host; pin the target platform explicitly.
             EXTRA_ARGS="$EXTRA_ARGS --target ${{ inputs.target }}"
+            if [ "${{ inputs.configuration }}" = "release_sim_arm64" ]; then
+              EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg --platforms=//build-system/bazel-utils/platforms:ios_sim_arm64"
+            else
+              EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg --platforms=//build-system/bazel-utils/platforms:ios_arm64_device"
+            fi
             ARTIFACT_ARGS=""
           fi
           mkdir -p build/artifacts

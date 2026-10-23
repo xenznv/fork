@@ -42,6 +42,7 @@ class BazelCommandLine:
         self.configuration_args = None
         self.split_submodules = False
         self.custom_target = None
+        self.extra_bazel_args = None
         self.continue_on_error = False
         self.show_actions = False
         self.enable_sandbox = False
@@ -122,6 +123,9 @@ class BazelCommandLine:
 
     def set_custom_target(self, target_name):
         self.custom_target = target_name
+
+    def add_extra_bazel_args(self, extra_bazel_args):
+        self.extra_bazel_args = extra_bazel_args
 
     def set_continue_on_error(self, continue_on_error):
         self.continue_on_error = continue_on_error
@@ -301,6 +305,8 @@ class BazelCommandLine:
 
         combined_arguments += self.common_args
         combined_arguments += self.common_build_args
+        if self.extra_bazel_args is not None:
+            combined_arguments += self.extra_bazel_args
         combined_arguments += self.get_define_arguments()
         combined_arguments += self.get_additional_build_arguments()
 
@@ -694,6 +700,8 @@ def build(bazel, arguments):
             print('TelegramBuild: warning: --embedWatchApp requires a device configuration (debug_arm64 or release_arm64); ignored for simulator builds.')
     bazel_command_line.set_build_number(arguments.buildNumber)
     bazel_command_line.set_custom_target(arguments.target)
+    if arguments.extraBazelArg is not None:
+        bazel_command_line.add_extra_bazel_args(extra_bazel_args=arguments.extraBazelArg)
     bazel_command_line.set_continue_on_error(arguments.continueOnError)
     bazel_command_line.set_show_actions(arguments.showActions)
     bazel_command_line.set_enable_sandbox(arguments.sandbox)
@@ -1067,6 +1075,14 @@ if __name__ == '__main__':
         type=str,
         help='A custom bazel target name to build.',
         metavar='target_name'
+    )
+    buildParser.add_argument(
+        '--extraBazelArg',
+        action='append',
+        required=False,
+        default=None,
+        help='Additional bazel command line argument (repeatable); applied after --//Telegram:disableProvisioningProfiles.',
+        metavar='argument'
     )
     buildParser.add_argument(
         '--continueOnError',
