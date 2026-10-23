@@ -217,6 +217,14 @@ jobs:
             # A bare library target has no apple configuration transition, so it would build
             # for the host; pin the target platform explicitly.
             EXTRA_ARGS="$EXTRA_ARGS --target ${{ inputs.target }}"
+            # A bare library target has no apple configuration transition, so it would build
+            # for the host; pin the target platform explicitly. The fast check exists to
+            # surface real compile errors (the full IPS build still validates warnings),
+            # so warnings treated as errors by -warnings-as-errors copts are demoted:
+            # Xcode 26 marks large parts of these old sources deprecated, which would
+            # otherwise bury actual errors under hundreds of -Wdeprecated-declarations.
+            EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg=--swiftcopt=-suppress-warnings"
+            EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg=--copt=-Wno-error=deprecated-declarations"
             if [ "${{ inputs.configuration }}" = "release_sim_arm64" ]; then
               EXTRA_ARGS="$EXTRA_ARGS --extraBazelArg=--platforms=//build-system/bazel-utils/platforms:ios_sim_arm64"
             else
