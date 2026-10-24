@@ -252,6 +252,7 @@ jobs:
           ls -la build/artifacts
 
       - name: Save bazel cache for future runs
+        if: always()
         uses: actions/cache/save@v4
         continue-on-error: true
         with:

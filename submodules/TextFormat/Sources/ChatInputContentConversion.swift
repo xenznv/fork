@@ -4,10 +4,15 @@ import TelegramCore
 /// Chat input content → a SEMANTIC NSAttributedString (text + `ChatTextInputAttributes` only; NO display
 /// decoration — no fonts/colors/spoiler-attachments/emoji views). Display-neutral on purpose; the node owns
 /// decoration. Tree-shaped successor to `ChatTextInputStateText.attributedText()`.
-public func attributedString(from content: ChatInputContent) -> NSAttributedString {
+/// `renderListMarkers` renders list membership (bullet/ordered/checklist) as a literal text prefix per
+/// paragraph. The base flat projection deliberately ignores lists (the legacy composer carries no list
+/// model), so this opt-in shape is only for IMPORT paths (RTF paste) where the marker text must survive
+/// as plain text; on the send/round-trip paths it stays off to avoid polluting the semantic model.
+public func attributedString(from content: ChatInputContent, renderListMarkers: Bool = false) -> NSAttributedString {
     let result = NSMutableAttributedString()
     let marker = true as NSNumber
     var isFirst = true
+    var orderedCounter = 0
 
     func appendSeparatorIfNeeded() {
         if !isFirst { result.append(NSAttributedString(string: "\n")) }
@@ -74,6 +79,22 @@ public func attributedString(from content: ChatInputContent) -> NSAttributedStri
             }
         case let .paragraph(paragraph):
             appendSeparatorIfNeeded()
+            if renderListMarkers, let list = paragraph.list {
+                let prefix: String
+                switch list.marker {
+                case .bullet:
+                    prefix = "\u{2022} "
+                    orderedCounter = 0
+                case .ordered:
+                    orderedCounter += 1
+                    prefix = "\(orderedCounter). "
+                case .checklist:
+                    prefix = list.checked == true ? "\u{2611} " : "\u{2610} "
+                }
+                result.append(NSAttributedString(string: String(repeating: "   ", count: max(0, Int(list.level))) + prefix))
+            } else if paragraph.list == nil || !renderListMarkers {
+                orderedCounter = 0
+            }
             appendRuns(paragraph)
         case let .pullQuote(pq):
             // Legacy UITextView projection: render pull-quote text as a quote-attributed block, mirroring `.code`.
