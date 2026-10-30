@@ -66,6 +66,11 @@ jobs:
             --codesigningInformationPath=build-system/fake-codesigning \
             --target=submodules/Postbox:PostboxTests
 
+      - name: Show Postbox test log
+        if: failure()
+        run: |
+          find "$RUNNER_TEMP/bazel-user-root" -path '*testlogs/submodules/Postbox/PostboxTests/test.log' -exec sh -c 'echo "=== $1 ==="; tail -n 200 "$1"' _ {} \;
+
   telegram-core:
     runs-on: xcode-27
     timeout-minutes: 330
