@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   postbox:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
@@ -20,10 +20,18 @@ jobs:
           submodules: 'recursive'
           fetch-depth: '1'
 
-      - name: Set active Xcode path
+      - name: Select Xcode
+        id: xcode
         run: |
-          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
-          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          REQUIRED=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
+          if [ -d "/Applications/Xcode_${REQUIRED}.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_${REQUIRED}.app/Contents/Developer"
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+            echo "flag=--overrideXcodeVersion" >> "$GITHUB_OUTPUT"
+            echo "::warning::Xcode ${REQUIRED} is not installed on this runner; building with $(xcodebuild -version | head -1)"
+          fi
           xcodebuild -version
 
       - name: Restore bazel cache
@@ -39,6 +47,7 @@ jobs:
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
             --cacheDir=/Users/Shared/bazel-disk-cache-postbox \
+            ${{ steps.xcode.outputs.flag }} \
             build \
             --buildNumber=1 \
             --configurationPath=build-system/appstore-configuration.json \
@@ -51,13 +60,14 @@ jobs:
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
             --cacheDir=/Users/Shared/bazel-disk-cache-postbox \
+            ${{ steps.xcode.outputs.flag }} \
             test \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --target=submodules/Postbox:PostboxTests
 
   telegram-core:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
@@ -65,10 +75,18 @@ jobs:
           submodules: 'recursive'
           fetch-depth: '1'
 
-      - name: Set active Xcode path
+      - name: Select Xcode
+        id: xcode
         run: |
-          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
-          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          REQUIRED=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
+          if [ -d "/Applications/Xcode_${REQUIRED}.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_${REQUIRED}.app/Contents/Developer"
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+            echo "flag=--overrideXcodeVersion" >> "$GITHUB_OUTPUT"
+            echo "::warning::Xcode ${REQUIRED} is not installed on this runner; building with $(xcodebuild -version | head -1)"
+          fi
           xcodebuild -version
 
       - name: Restore bazel cache
@@ -84,6 +102,7 @@ jobs:
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
             --cacheDir=/Users/Shared/bazel-disk-cache-core \
+            ${{ steps.xcode.outputs.flag }} \
             build \
             --buildNumber=1 \
             --configurationPath=build-system/appstore-configuration.json \
