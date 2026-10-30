@@ -12,7 +12,9 @@ concurrency:
 
 jobs:
   postbox:
-    runs-on: xcode-27
+    # The Bazel test runner cannot drive the iOS 27 simulator runtime that ships with Xcode 27, and
+    # Postbox is plain Swift, so the tests run on the image whose runtime the runner supports.
+    runs-on: macos-26
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
