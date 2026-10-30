@@ -119,9 +119,11 @@ jobs:
             --configuration=debug_sim_arm64 \
             --target=submodules/TelegramCore:TelegramCore
 
-  telegram-ui:
-    # The chat UI (context menu entry + message history screen) is only checked by compiling it:
-    # running the app needs a real MTProto session, which CI does not have.
+  app:
+    # TelegramUI has no buildable target of its own: its deps use select()s that only resolve
+    # inside a platform transition, so `build --target=submodules/TelegramUI:TelegramUI` fails
+    # during analysis. The app target is therefore the only way to compile UI code. Running it
+    # later needs a real MTProto session, which CI does not have -- this job only type-checks.
     runs-on: xcode-27
     timeout-minutes: 330
     steps:
@@ -147,20 +149,23 @@ jobs:
       - name: Restore bazel cache
         uses: actions/cache@v4
         with:
-          path: /Users/Shared/bazel-disk-cache-ui
-          key: ui-disk-cache-${{ runner.os }}-v1-${{ github.run_id }}
+          path: /Users/Shared/bazel-disk-cache-app
+          key: app-disk-cache-${{ runner.os }}-v1-${{ github.run_id }}
           restore-keys: |
-            ui-disk-cache-${{ runner.os }}-v1-
+            app-disk-cache-${{ runner.os }}-v1-
 
-      - name: Build TelegramUI
+      - name: Import fake signing certificates
+        run: |
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+
+      - name: Build the app
         run: |
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
-            --cacheDir=/Users/Shared/bazel-disk-cache-ui \
+            --cacheDir=/Users/Shared/bazel-disk-cache-app \
             ${{ steps.xcode.outputs.flag }} \
             build \
             --buildNumber=1 \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
-            --configuration=debug_sim_arm64 \
-            --target=submodules/TelegramUI:TelegramUI
+            --configuration=debug_sim_arm64
