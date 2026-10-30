@@ -472,6 +472,14 @@ final class MessageHistoryTable: Table {
     
     func removeMessages(_ messageIds: [MessageId], operationsByPeerId: inout [PeerId: [MessageHistoryOperation]], updatedMedia: inout [MediaId: Media?], unsentMessageOperations: inout [IntermediateMessageHistoryUnsentOperation], updatedPeerReadStateOperations: inout [PeerId: PeerReadStateSynchronizationOperation?], globalTagsOperations: inout [GlobalMessageHistoryTagsOperation], pendingActionsOperations: inout [PendingMessageActionsOperation], updatedMessageActionsSummaries: inout [PendingMessageActionsSummaryKey: Int32], updatedMessageTagSummaries: inout [MessageHistoryTagsSummaryKey: MessageHistoryTagNamespaceSummary], invalidateMessageTagSummaries: inout [InvalidatedMessageHistoryTagsSummaryEntryOperation], localTagsOperations: inout [IntermediateMessageHistoryLocalTagsOperation], timestampBasedMessageAttributesOperations: inout [TimestampBasedMessageAttributesOperation], forEachMedia: ((Media) -> Void)?) {
         for (peerId, messageIds) in self.messageIdsByPeerId(messageIds) {
+            // Archive the entries while both the index and the stored data are still present:
+            // the index removal below is what makes the content unreachable afterwards.
+            for id in messageIds {
+                if let (index, value) = self.archivedEntryValue(id) {
+                    self.archiveTable.addCapture(index: index, rawValue: value, kind: .deleted, skipIfSameAsLatest: false)
+                }
+            }
+            
             var operations: [MessageHistoryIndexOperation] = []
             
             for id in messageIds {
@@ -487,12 +495,6 @@ final class MessageHistoryTable: Table {
                             }
                         }
                     }
-                }
-            }
-            
-            for id in messageIds {
-                if let (index, value) = self.archivedEntryValue(id) {
-                    self.archiveTable.addCapture(index: index, rawValue: value, kind: .deleted, skipIfSameAsLatest: false)
                 }
             }
             
