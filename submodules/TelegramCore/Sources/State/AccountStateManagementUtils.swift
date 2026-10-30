@@ -4680,6 +4680,12 @@ func replayFinalState(
                         generatedEvent = reactionGeneratedEvent(previousMessage.reactionsAttribute, message.reactionsAttribute, message: message, transaction: transaction)
                     }
                     
+                    // Archive the previous content of the message when the edit changes
+                    // the text or the media, before the merged update is applied.
+                    if previousMessage.text != message.text || previousMessage.media.flatMap({ $0.mediaIds }) != message.media.flatMap({ $0.mediaIds }) {
+                        transaction.captureArchivedMessageVersion(id)
+                    }
+                    
                     return .update(mergedServerMessageUpdate(previous: previousMessage, updated: message))
                 })
                 if let generatedEvent = generatedEvent {

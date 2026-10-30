@@ -92,8 +92,9 @@ final class MessageHistoryTable: Table {
     let textIndexTable: MessageHistoryTextIndexTable
     let summaryTable: MessageHistoryTagsSummaryTable
     let pendingActionsTable: PendingMessageActionsTable
+    let archiveTable: MessageArchiveTable
     
-    init(valueBox: ValueBox, table: ValueBoxTable, useCaches: Bool, seedConfiguration: SeedConfiguration, messageHistoryIndexTable: MessageHistoryIndexTable, messageHistoryHoleIndexTable: MessageHistoryHoleIndexTable, messageMediaTable: MessageMediaTable, historyMetadataTable: MessageHistoryMetadataTable, globallyUniqueMessageIdsTable: MessageGloballyUniqueIdTable, unsentTable: MessageHistoryUnsentTable, failedTable: MessageHistoryFailedTable, tagsTable: MessageHistoryTagsTable, threadsTable: MessageHistoryThreadsTable, threadTagsTable: MessageHistoryThreadTagsTable, customTagTable: MessageCustomTagTable, customTagWithTagTable: MessageCustomTagWithTagTable, globalTagsTable: GlobalMessageHistoryTagsTable, localTagsTable: LocalMessageHistoryTagsTable, timeBasedAttributesTable: TimestampBasedMessageAttributesTable, readStateTable: MessageHistoryReadStateTable, synchronizeReadStateTable: MessageHistorySynchronizeReadStateTable, textIndexTable: MessageHistoryTextIndexTable, summaryTable: MessageHistoryTagsSummaryTable, pendingActionsTable: PendingMessageActionsTable) {
+    init(valueBox: ValueBox, table: ValueBoxTable, useCaches: Bool, seedConfiguration: SeedConfiguration, messageHistoryIndexTable: MessageHistoryIndexTable, messageHistoryHoleIndexTable: MessageHistoryHoleIndexTable, messageMediaTable: MessageMediaTable, historyMetadataTable: MessageHistoryMetadataTable, globallyUniqueMessageIdsTable: MessageGloballyUniqueIdTable, unsentTable: MessageHistoryUnsentTable, failedTable: MessageHistoryFailedTable, tagsTable: MessageHistoryTagsTable, threadsTable: MessageHistoryThreadsTable, threadTagsTable: MessageHistoryThreadTagsTable, customTagTable: MessageCustomTagTable, customTagWithTagTable: MessageCustomTagWithTagTable, globalTagsTable: GlobalMessageHistoryTagsTable, localTagsTable: LocalMessageHistoryTagsTable, timeBasedAttributesTable: TimestampBasedMessageAttributesTable, readStateTable: MessageHistoryReadStateTable, synchronizeReadStateTable: MessageHistorySynchronizeReadStateTable, textIndexTable: MessageHistoryTextIndexTable, summaryTable: MessageHistoryTagsSummaryTable, pendingActionsTable: PendingMessageActionsTable, archiveTable: MessageArchiveTable) {
         self.seedConfiguration = seedConfiguration
         self.messageHistoryIndexTable = messageHistoryIndexTable
         self.messageHistoryHoleIndexTable = messageHistoryHoleIndexTable
@@ -115,6 +116,7 @@ final class MessageHistoryTable: Table {
         self.textIndexTable = textIndexTable
         self.summaryTable = summaryTable
         self.pendingActionsTable = pendingActionsTable
+        self.archiveTable = archiveTable
         
         super.init(valueBox: valueBox, table: table, useCaches: useCaches)
     }
@@ -488,6 +490,12 @@ final class MessageHistoryTable: Table {
                 }
             }
             
+            for id in messageIds {
+                if let (index, value) = self.archivedEntryValue(id) {
+                    self.archiveTable.addCapture(index: index, rawValue: value, kind: .deleted, skipIfSameAsLatest: false)
+                }
+            }
+            
             self.processIndexOperations(peerId, operations: operations, processedOperationsByPeerId: &operationsByPeerId, updatedMedia: &updatedMedia, unsentMessageOperations: &unsentMessageOperations, updatedPeerReadStateOperations: &updatedPeerReadStateOperations, globalTagsOperations: &globalTagsOperations, pendingActionsOperations: &pendingActionsOperations, updatedMessageActionsSummaries: &updatedMessageActionsSummaries, updatedMessageTagSummaries: &updatedMessageTagSummaries, invalidateMessageTagSummaries: &invalidateMessageTagSummaries, localTagsOperations: &localTagsOperations, timestampBasedMessageAttributesOperations: &timestampBasedMessageAttributesOperations)
         }
     }
@@ -780,6 +788,20 @@ final class MessageHistoryTable: Table {
     func topIndexEntry(peerId: PeerId, namespace: MessageId.Namespace) -> MessageIndex? {
         let result = self.messageHistoryIndexTable.top(peerId, namespace: namespace)
         return result
+    }
+    
+    // Copies the current stored entry for a message, without ensuring it stays alive past
+    // the current transaction step. Used by the archive capture logic.
+    func archivedEntryValue(_ id: MessageId) -> (index: MessageIndex, value: ReadBuffer)? {
+        guard let index = self.messageHistoryIndexTable.getIndex(id) else {
+            return nil
+        }
+        guard let value = self.valueBox.get(self.table, key: self.key(index)) else {
+            return nil
+        }
+        let bytes = malloc(value.length)!
+        memcpy(bytes, value.memory, value.length)
+        return (index, ReadBuffer(memory: bytes, length: value.length, freeWhenDone: true))
     }
     
     func getMessage(_ index: MessageIndex) -> IntermediateMessage? {
