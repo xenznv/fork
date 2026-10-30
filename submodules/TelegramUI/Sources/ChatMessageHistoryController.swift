@@ -7,7 +7,6 @@ import TelegramPresentationData
 import AccountContext
 import ItemListUI
 import PresentationDataUtils
-import Postbox
 import TextFormat
 
 private final class ChatMessageHistoryArguments {
@@ -19,12 +18,12 @@ private final class ChatMessageHistoryArguments {
 }
 
 private enum ChatMessageHistoryEntry: ItemListNodeEntry {
-    case version(index: Int, kind: MessageArchiveKind, label: String, text: String)
+    case version(index: Int, label: String, text: String)
     case empty(text: String)
 
     var section: ItemListSectionId {
         switch self {
-        case let .version(index, _, _, _):
+        case let .version(index, _, _):
             return Int32(index)
         case .empty:
             return 0
@@ -33,7 +32,7 @@ private enum ChatMessageHistoryEntry: ItemListNodeEntry {
 
     var stableId: Int32 {
         switch self {
-        case let .version(index, _, _, _):
+        case let .version(index, _, _):
             return Int32(index)
         case .empty:
             return 0
@@ -42,8 +41,8 @@ private enum ChatMessageHistoryEntry: ItemListNodeEntry {
 
     static func ==(lhs: ChatMessageHistoryEntry, rhs: ChatMessageHistoryEntry) -> Bool {
         switch lhs {
-        case let .version(lhsIndex, lhsKind, lhsLabel, lhsText):
-            if case let .version(rhsIndex, rhsKind, rhsLabel, rhsText) = rhs, lhsIndex == rhsIndex, lhsKind == rhsKind, lhsLabel == rhsLabel, lhsText == rhsText {
+        case let .version(lhsIndex, lhsLabel, lhsText):
+            if case let .version(rhsIndex, rhsLabel, rhsText) = rhs, lhsIndex == rhsIndex, lhsLabel == rhsLabel, lhsText == rhsText {
                 return true
             }
             return false
@@ -61,7 +60,7 @@ private enum ChatMessageHistoryEntry: ItemListNodeEntry {
 
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         switch self {
-        case let .version(_, _, label, text):
+        case let .version(_, label, text):
             return ItemListTextWithLabelItem(presentationData: presentationData, label: label, text: text, style: .blocks, enabledEntityTypes: [], multiline: true, sectionId: self.section, action: nil)
         case let .empty(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
@@ -69,7 +68,7 @@ private enum ChatMessageHistoryEntry: ItemListNodeEntry {
     }
 }
 
-private func chatMessageHistoryEntries(presentationData: PresentationData, versions: [ArchivedMessageVersion]) -> [ChatMessageHistoryEntry] {
+private func chatMessageHistoryEntries(presentationData: PresentationData, versions: [EngineMessageArchivedVersion]) -> [ChatMessageHistoryEntry] {
     if versions.isEmpty {
         return [.empty(text: presentationData.strings.Chat_History_Empty)]
     }
@@ -95,12 +94,12 @@ private func chatMessageHistoryEntries(presentationData: PresentationData, versi
             }
         }
 
-        entries.append(.version(index: index, kind: version.kind, label: "\(kindText) \u{00b7} \(dateText)", text: text))
+        entries.append(.version(index: index, label: "\(kindText) \u{00b7} \(dateText)", text: text))
     }
     return entries
 }
 
-func chatMessageHistoryController(context: AccountContext, messageId: MessageId) -> ViewController {
+func chatMessageHistoryController(context: AccountContext, messageId: EngineMessage.Id) -> ViewController {
     var dismissImpl: (() -> Void)?
 
     let arguments = ChatMessageHistoryArguments(dismiss: {
@@ -109,9 +108,7 @@ func chatMessageHistoryController(context: AccountContext, messageId: MessageId)
 
     let signal = combineLatest(
         context.sharedContext.presentationData,
-        context.account.postbox.transaction { transaction -> [ArchivedMessageVersion] in
-            return transaction.archivedMessageVersions(messageId)
-        }
+        context.engine.messages.archivedMessageVersions(id: messageId)
     )
     |> deliverOnMainQueue
     |> map { value -> (ItemListControllerState, (ItemListNodeState, ChatMessageHistoryArguments)) in

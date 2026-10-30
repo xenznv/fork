@@ -55,9 +55,7 @@ extension ChatControllerImpl {
                 peerMessageSelectedReactions(context: self.context, message: EngineMessage(topMessage)),
                 topMessageReactions(context: self.context, message: topMessage, subPeerId: self.chatLocation.threadId.flatMap(EnginePeer.Id.init), ignoreDefault: canBypassReactionRestrictions),
                 ApplicationSpecificNotice.getChatTextSelectionTips(accountManager: self.context.sharedContext.accountManager),
-                self.context.account.postbox.transaction { transaction -> Int in
-                    return transaction.archivedMessageVersionCount(message.id)
-                }
+                self.context.engine.messages.archivedMessageVersionCount(id: message.id)
             ).startStandalone(next: { [weak self] peer, actions, allowedReactionsAndStars, selectedReactions, topReactions, chatTextSelectionTips, archivedVersionCount in
                 guard let self else {
                     return
