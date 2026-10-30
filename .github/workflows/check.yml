@@ -1,0 +1,92 @@
+name: Check
+
+on:
+  push:
+    branches:
+      - fork/init
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postbox:
+    runs-on: macos-26
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: '1'
+
+      - name: Set active Xcode path
+        run: |
+          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
+          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Restore bazel cache
+        uses: actions/cache@v4
+        with:
+          path: /Users/Shared/bazel-disk-cache-postbox
+          key: postbox-disk-cache-${{ runner.os }}-v1-${{ github.run_id }}
+          restore-keys: |
+            postbox-disk-cache-${{ runner.os }}-v1-
+
+      - name: Build Postbox
+        run: |
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
+            --cacheDir=/Users/Shared/bazel-disk-cache-postbox \
+            build \
+            --buildNumber=1 \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=debug_sim_arm64 \
+            --target=submodules/Postbox:Postbox
+
+      - name: Run Postbox tests
+        run: |
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
+            --cacheDir=/Users/Shared/bazel-disk-cache-postbox \
+            test \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --target=submodules/Postbox:PostboxTests
+
+  telegram-core:
+    runs-on: macos-26
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: '1'
+
+      - name: Set active Xcode path
+        run: |
+          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
+          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Restore bazel cache
+        uses: actions/cache@v4
+        with:
+          path: /Users/Shared/bazel-disk-cache-core
+          key: core-disk-cache-${{ runner.os }}-v1-${{ github.run_id }}
+          restore-keys: |
+            core-disk-cache-${{ runner.os }}-v1-
+
+      - name: Build TelegramCore
+        run: |
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
+            --cacheDir=/Users/Shared/bazel-disk-cache-core \
+            build \
+            --buildNumber=1 \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=debug_sim_arm64 \
+            --target=submodules/TelegramCore:TelegramCore

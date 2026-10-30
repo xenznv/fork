@@ -34,12 +34,6 @@ final class MessageArchiveTable: Table {
         return self.key(id, captureIndex: captureIndex, key: self.sharedKey)
     }
     
-    private func copyOf(_ value: ReadBuffer) -> ReadBuffer {
-        let bytes = malloc(value.length)!
-        memcpy(bytes, value.memory, value.length)
-        return ReadBuffer(memory: bytes, length: value.length, freeWhenDone: true)
-    }
-    
     private func lowerBound() -> ValueBoxKey {
         let key = ValueBoxKey(length: 8 + 4 + 4 + 4)
         memset(key.memory, 0, key.length)
@@ -67,7 +61,7 @@ final class MessageArchiveTable: Table {
     func addCapture(index: MessageIndex, rawValue: ReadBuffer, kind: MessageArchiveKind, skipIfSameAsLatest: Bool) {
         let id = index.id
         
-        if skipIfSameAsLatest, let latestRawValue = self.latestRawValue(id), latestRawValue == rawValue {
+        if skipIfSameAsLatest, self.latestEntryMatchesPayload(id: id, kind: kind, rawValue: rawValue) {
             return
         }
         
@@ -89,6 +83,25 @@ final class MessageArchiveTable: Table {
         buffer.write(rawValue.memory, offset: 0, length: rawValue.length)
         
         self.valueBox.set(self.table, key: self.sharedKeyFor(id, captureIndex: captureIndex), value: buffer)
+    }
+    
+    /// True when the most recent stored record for the message carries an identical entry
+    /// payload. The comparison covers the payload region only: the stored value starts
+    /// with a 9-byte header (2x int32 + int8) that is skipped, and `kind` is not part of
+    /// the comparison because dedup applies to repeated captures of the same content.
+    private func latestEntryMatchesPayload(id: MessageId, kind: MessageArchiveKind, rawValue: ReadBuffer) -> Bool {
+        let headerLength = 4 + 4 + 1
+        var matches = false
+        self.valueBox.range(self.table, start: self.key(id, captureIndex: Int32.max).successor, end: self.key(id, captureIndex: 1).predecessor, values: { _, value in
+            guard value.length >= headerLength else {
+                return false
+            }
+            let payloadLength = value.length - headerLength
+            let payloadBytes = value.memory.advanced(by: headerLength)
+            matches = payloadLength == rawValue.length && memcmp(payloadBytes, rawValue.memory, payloadLength) == 0
+            return false
+        }, limit: 1)
+        return matches
     }
     
     // MARK: Reading
@@ -134,15 +147,6 @@ final class MessageArchiveTable: Table {
             return false
         }, limit: 1)
         return latestIndex
-    }
-    
-    private func latestRawValue(_ id: MessageId) -> ReadBuffer? {
-        var latestValue: ReadBuffer?
-        self.valueBox.range(self.table, start: self.key(id, captureIndex: Int32.max).successor, end: self.key(id, captureIndex: 1).predecessor, values: { _, value in
-            latestValue = self.copyOf(value)
-            return false
-        }, limit: 1)
-        return latestValue
     }
 }
 

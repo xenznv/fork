@@ -1,0 +1,200 @@
+import Foundation
+import XCTest
+@testable import Postbox
+
+/// Captures taken by the archive table must decode back to the exact message content
+/// that was stored before the message was removed or edited.
+final class MessageArchiveTableTests: XCTestCase {
+    private var fixture: MessageHistoryTableFixture!
+
+    private let peer = MessageHistoryTableFixture.peerId(310)
+    private let namespace = MessageHistoryTableFixture.messageNamespace
+
+    override func setUp() {
+        super.setUp()
+        self.fixture = MessageHistoryTableFixture(name: "MessageArchiveTableTests")
+    }
+
+    override func tearDown() {
+        self.fixture.close()
+        self.fixture = nil
+        super.tearDown()
+    }
+
+    // MARK: - Helpers
+
+    private func id(_ value: Int32) -> MessageId {
+        return MessageId(peerId: self.peer, namespace: self.namespace, id: value)
+    }
+
+    private func store(_ messageId: MessageId, timestamp: Int32, text: String, flags: StoreMessageFlags = [.Incoming], media: [Media] = []) {
+        let _ = self.fixture.addMessages([MessageHistoryTableFixture.storeMessage(id: messageId, timestamp: timestamp, text: text, media: media, flags: flags)])
+    }
+
+    private func replaceContent(_ messageId: MessageId, timestamp: Int32, text: String, flags: StoreMessageFlags = [.Incoming]) {
+        let _ = self.fixture.updateMessage(messageId, message: MessageHistoryTableFixture.storeMessage(id: messageId, timestamp: timestamp, text: text, flags: flags))
+    }
+
+    /// Captures the current stored content as an edit version, mirroring what the
+    /// production update path does before applying the new content.
+    private func captureEditVersion(_ messageId: MessageId) {
+        self.fixture.queue.sync {
+            if let (index, value) = self.fixture.messageHistoryTable.archivedEntryValue(messageId) {
+                self.fixture.messageArchiveTable.addCapture(index: index, rawValue: value, kind: .editedVersion, skipIfSameAsLatest: true)
+            }
+        }
+    }
+
+    private func remove(_ messageIds: [MessageId]) {
+        let _ = self.fixture.removeMessages(messageIds)
+    }
+
+    private func records(_ messageId: MessageId) -> [ArchivedMessageRecord] {
+        var result: [ArchivedMessageRecord] = []
+        self.fixture.queue.sync {
+            result = self.fixture.messageArchiveTable.records(id: messageId)
+        }
+        return result
+    }
+
+    private func storedRecordCount() -> Int {
+        var count = 0
+        self.fixture.queue.sync {
+            count = self.fixture.messageArchiveTable.recordCount()
+        }
+        return count
+    }
+
+    // MARK: - Deleted snapshots
+
+    func testDeletingMessageStoresSnapshotThatDecodesBack() {
+        let messageId = self.id(11)
+        self.store(messageId, timestamp: 1200, text: "victim")
+
+        self.remove([messageId])
+
+        let records = self.records(messageId)
+        XCTAssertEqual(records.count, 1)
+        if let record = records.first {
+            XCTAssertEqual(record.id, messageId)
+            XCTAssertEqual(record.captureIndex, 1)
+            if record.kind != .deleted {
+                XCTFail("unexpected kind \(record.kind)")
+            }
+            XCTAssertEqual(record.message.text, "victim")
+            XCTAssertEqual(record.message.timestamp, 1200)
+            XCTAssertTrue(record.message.flags.contains(.Incoming))
+            XCTAssertEqual(record.message.globalTags, [])
+        }
+        XCTAssertEqual(self.storedRecordCount(), 1)
+    }
+
+    func testDeletingMessageKeepsEmbeddedMediaBytes() {
+        let messageId = self.id(12)
+        let mediaId = MediaId(namespace: 0, id: 101)
+        self.store(messageId, timestamp: 1300, text: "with media", media: [FixtureMedia(id: mediaId, label: "shared")])
+
+        self.remove([messageId])
+
+        let records = self.records(messageId)
+        XCTAssertEqual(records.count, 1)
+        if let record = records.first {
+            var media: [Media] = []
+            self.fixture.queue.sync {
+                media = self.fixture.messageHistoryTable.renderMessageMedia(referencedMedia: record.message.referencedMedia, embeddedMediaData: record.message.embeddedMediaData)
+            }
+            XCTAssertEqual(media.count, 1)
+            if let fixtureMedia = media.first as? FixtureMedia {
+                XCTAssertEqual(fixtureMedia.id, mediaId)
+                XCTAssertEqual(fixtureMedia.label, "shared")
+            } else {
+                XCTFail("media did not decode back as FixtureMedia")
+            }
+        }
+    }
+
+    func testDeletesOfDifferentMessagesDoNotInterfere() {
+        let first = self.id(13)
+        let second = self.id(14)
+        self.store(first, timestamp: 1400, text: "first")
+        self.store(second, timestamp: 1401, text: "second")
+
+        self.remove([first, second])
+
+        let firstRecords = self.records(first)
+        XCTAssertEqual(firstRecords.count, 1)
+        XCTAssertEqual(firstRecords.first?.message.text, "first")
+
+        let secondRecords = self.records(second)
+        XCTAssertEqual(secondRecords.count, 1)
+        XCTAssertEqual(secondRecords.first?.message.text, "second")
+        XCTAssertEqual(self.storedRecordCount(), 2)
+    }
+
+    // MARK: - Edit versions
+
+    func testEditingMessageCapturesPreviousVersion() {
+        let messageId = self.id(21)
+        self.store(messageId, timestamp: 1500, text: "before edit")
+        self.captureEditVersion(messageId)
+        self.replaceContent(messageId, timestamp: 1500, text: "after edit")
+        self.captureEditVersion(messageId)
+
+        let records = self.records(messageId)
+        XCTAssertEqual(records.count, 2)
+        XCTAssertEqual(records.first?.captureIndex, 1)
+        XCTAssertEqual(records.first?.message.text, "before edit")
+        XCTAssertEqual(records.last?.captureIndex, 2)
+        XCTAssertEqual(records.last?.message.text, "after edit")
+        for record in records {
+            if record.kind != .editedVersion {
+                XCTFail("unexpected kind \(record.kind)")
+            }
+        }
+    }
+
+    func testEditCaptureSkippedWhenPayloadUnchanged() {
+        let messageId = self.id(22)
+        self.store(messageId, timestamp: 1600, text: "unchanged content")
+        self.captureEditVersion(messageId)
+        self.captureEditVersion(messageId)
+
+        XCTAssertEqual(self.records(messageId).count, 1)
+    }
+
+    func testEditDedupeDoesNotReportOtherMessagesCaptures() {
+        let first = self.id(23)
+        let second = self.id(24)
+        self.store(first, timestamp: 1700, text: "same text")
+        self.store(second, timestamp: 1700, text: "same text")
+
+        self.captureEditVersion(first)
+        self.captureEditVersion(second)
+
+        XCTAssertEqual(self.records(first).count, 1)
+        XCTAssertEqual(self.records(second).count, 1)
+        XCTAssertEqual(self.storedRecordCount(), 2)
+    }
+
+    // MARK: - Enumeration
+
+    func testEnumerateAllReportsEveryStoredRecord() {
+        let first = self.id(31)
+        let second = self.id(32)
+        self.store(first, timestamp: 1800, text: "one")
+        self.store(second, timestamp: 1801, text: "two")
+        self.remove([first, second])
+
+        var seenIds: Set<Int32> = []
+        var seenKinds: [MessageArchiveKind] = []
+        self.fixture.queue.sync {
+            self.fixture.messageArchiveTable.enumerateAll { record in
+                seenIds.insert(record.id.id)
+                seenKinds.append(record.kind)
+                return true
+            }
+        }
+        XCTAssertEqual(seenIds, Set([first.id, second.id]))
+        XCTAssertEqual(seenKinds, [.deleted, .deleted])
+    }
+}
