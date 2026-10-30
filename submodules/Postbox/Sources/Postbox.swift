@@ -152,6 +152,18 @@ public final class Transaction {
         self.postbox?.captureArchivedMessageVersion(id: id)
     }
     
+    /// Every locally archived version of the message, oldest first. Deleted messages keep the
+    /// last known content; edits store the content that was replaced.
+    public func archivedMessageVersions(_ id: MessageId) -> [ArchivedMessageVersion] {
+        assert(!self.disposed)
+        return self.postbox?.archivedMessageVersions(id) ?? []
+    }
+    
+    public func archivedMessageVersionCount(_ id: MessageId) -> Int {
+        assert(!self.disposed)
+        return self.postbox?.archivedMessageVersionCount(id) ?? 0
+    }
+    
     public func deleteMessagesInRange(peerId: PeerId, namespace: MessageId.Namespace, minId: MessageId.Id, maxId: MessageId.Id, forEachMedia: ((Media) -> Void)?) {
         assert(!self.disposed)
         self.postbox?.deleteMessagesInRange(peerId: peerId, namespace: namespace, minId: minId, maxId: maxId, forEachMedia: forEachMedia)
@@ -2321,6 +2333,16 @@ final class PostboxImpl {
         if let (index, value) = self.messageHistoryTable.archivedEntryValue(id) {
             self.messageArchiveTable.addCapture(index: index, rawValue: value, kind: .editedVersion, skipIfSameAsLatest: true)
         }
+    }
+    
+    fileprivate func archivedMessageVersions(_ id: MessageId) -> [ArchivedMessageVersion] {
+        return self.messageArchiveTable.records(id: id).map { record in
+            return ArchivedMessageVersion(message: self.renderIntermediateMessage(record.message), kind: record.kind, captureTimestamp: record.captureTimestamp, captureIndex: record.captureIndex)
+        }
+    }
+    
+    fileprivate func archivedMessageVersionCount(_ id: MessageId) -> Int {
+        return self.messageArchiveTable.recordCount(id: id)
     }
     
     fileprivate func deleteMessagesInRange(peerId: PeerId, namespace: MessageId.Namespace, minId: MessageId.Id, maxId: MessageId.Id, forEachMedia: ((Media) -> Void)?) {

@@ -1,8 +1,25 @@
 import Foundation
 
-enum MessageArchiveKind: Int8 {
+public enum MessageArchiveKind: Int8 {
     case deleted
     case editedVersion
+}
+
+/// A single stored version of a message, rendered for consumption outside the module.
+public struct ArchivedMessageVersion {
+    public let message: Message
+    public let kind: MessageArchiveKind
+    /// When this version was captured locally (not when the message was sent).
+    public let captureTimestamp: Int32
+    /// Monotonically growing per-message version number, starting at 1.
+    public let captureIndex: Int32
+
+    init(message: Message, kind: MessageArchiveKind, captureTimestamp: Int32, captureIndex: Int32) {
+        self.message = message
+        self.kind = kind
+        self.captureTimestamp = captureTimestamp
+        self.captureIndex = captureIndex
+    }
 }
 
 struct ArchivedMessageRecord {
@@ -129,6 +146,15 @@ final class MessageArchiveTable: Table {
         }, limit: 0)
     }
     
+    func recordCount(id: MessageId) -> Int {
+        var count = 0
+        self.valueBox.range(self.table, start: self.key(id, captureIndex: 1).predecessor, end: self.key(id, captureIndex: Int32.max).successor, keys: { _ in
+            count += 1
+            return true
+        }, limit: 0)
+        return count
+    }
+
     func recordCount() -> Int {
         var count = 0
         self.valueBox.range(self.table, start: self.lowerBound(), end: self.upperBound(), keys: { _ in

@@ -104,10 +104,11 @@ swift_library(
     ],
 )
 
+# The simulator runtime is left to the active Xcode instead of being pinned, so the tests run on
+# whichever iOS runtime ships with the toolchain available on the machine.
 ios_test_runner(
     name = "PostboxTestRunner",
     device_type = "iPhone 17",
-    os_version = "26.5",
 )
 
 ios_unit_test(

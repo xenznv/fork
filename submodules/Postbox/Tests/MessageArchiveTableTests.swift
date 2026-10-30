@@ -57,6 +57,14 @@ final class MessageArchiveTableTests: XCTestCase {
         return result
     }
 
+    private func perMessageRecordCount(_ messageId: MessageId) -> Int {
+        var count = 0
+        self.fixture.queue.sync {
+            count = self.fixture.messageArchiveTable.recordCount(id: messageId)
+        }
+        return count
+    }
+
     private func storedRecordCount() -> Int {
         var count = 0
         self.fixture.queue.sync {
@@ -173,6 +181,23 @@ final class MessageArchiveTableTests: XCTestCase {
 
         XCTAssertEqual(self.records(first).count, 1)
         XCTAssertEqual(self.records(second).count, 1)
+        XCTAssertEqual(self.storedRecordCount(), 2)
+    }
+
+    // MARK: - Per-message counts
+
+    func testPerMessageCountReportsOnlyThatMessage() {
+        let deleted = self.id(41)
+        let edited = self.id(42)
+        self.store(deleted, timestamp: 1900, text: "deleted")
+        self.store(edited, timestamp: 1901, text: "edited")
+        self.remove([deleted])
+        self.captureEditVersion(edited)
+        self.captureEditVersion(edited)
+
+        XCTAssertEqual(self.perMessageRecordCount(deleted), 1)
+        XCTAssertEqual(self.perMessageRecordCount(edited), 1)
+        XCTAssertEqual(self.perMessageRecordCount(self.id(43)), 0)
         XCTAssertEqual(self.storedRecordCount(), 2)
     }
 
