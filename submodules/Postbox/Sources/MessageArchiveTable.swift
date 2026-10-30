@@ -64,7 +64,8 @@ final class MessageArchiveTable: Table {
     }
     
     private func captureTimestamp() -> Int32 {
-        return Int32(CFAbsoluteTimeGetCurrent())
+        // Unix time, matching every other timestamp the app displays and synchronizes.
+        return Int32(Date().timeIntervalSince1970)
     }
     
     // MARK: Writing

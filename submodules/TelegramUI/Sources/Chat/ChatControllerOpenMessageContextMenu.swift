@@ -54,8 +54,11 @@ extension ChatControllerImpl {
                 peerMessageAllowedReactions(context: self.context, message: topMessage, ignoreDefault: canBypassReactionRestrictions),
                 peerMessageSelectedReactions(context: self.context, message: EngineMessage(topMessage)),
                 topMessageReactions(context: self.context, message: topMessage, subPeerId: self.chatLocation.threadId.flatMap(EnginePeer.Id.init), ignoreDefault: canBypassReactionRestrictions),
-                ApplicationSpecificNotice.getChatTextSelectionTips(accountManager: self.context.sharedContext.accountManager)
-            ).startStandalone(next: { [weak self] peer, actions, allowedReactionsAndStars, selectedReactions, topReactions, chatTextSelectionTips in
+                ApplicationSpecificNotice.getChatTextSelectionTips(accountManager: self.context.sharedContext.accountManager),
+                self.context.account.postbox.transaction { transaction -> Int in
+                    return transaction.archivedMessageVersionCount(message.id)
+                }
+            ).startStandalone(next: { [weak self] peer, actions, allowedReactionsAndStars, selectedReactions, topReactions, chatTextSelectionTips, archivedVersionCount in
                 guard let self else {
                     return
                 }
@@ -70,6 +73,38 @@ extension ChatControllerImpl {
                     }
                 case .custom, .twoLists:
                     break
+                }
+
+                // The locally archived versions of this message. The entry is only offered when
+                // there is something to look at, so the menu stays unchanged for ordinary messages.
+                if archivedVersionCount > 0, case var .list(itemList) = actions.content {
+                    let historyItem = ContextMenuItem.action(ContextMenuActionItem(text: presentationData.strings.Chat_ContextMenu_History, icon: { theme in
+                        return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Time"), color: theme.actionSheet.primaryTextColor)
+                    }, action: { [weak self] c, _ in
+                        guard let self else {
+                            return
+                        }
+                        let messageId = message.id
+                        c?.dismiss(completion: {
+                            self.present(chatMessageHistoryController(context: self.context, messageId: messageId), in: .window(.root))
+                        })
+                    }))
+
+                    // Keep the destructive item last, as the menu is otherwise ordered by importance.
+                    var insertionIndex = itemList.count
+                    if let destructiveIndex = itemList.firstIndex(where: { item in
+                        if case let .action(actionItem) = item, case .destructive = actionItem.textColor {
+                            return true
+                        }
+                        return false
+                    }) {
+                        insertionIndex = destructiveIndex
+                        if insertionIndex > 0, case .separator = itemList[insertionIndex - 1] {
+                            insertionIndex -= 1
+                        }
+                    }
+                    itemList.insert(historyItem, at: insertionIndex)
+                    actions.content = .list(itemList)
                 }
                 
                 if allowedReactions != nil, case let .customChatContents(customChatContents) = self.presentationInterfaceState.subject {

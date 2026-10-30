@@ -11851,6 +11851,13 @@ Sorry for the inconvenience.";
 "Chat.ContextMenu.ReportAd" = "Report Ad";
 "Chat.ContextMenu.RemoveAd" = "Remove Ad";
 
+"Chat.ContextMenu.History" = "History";
+"Chat.History.Title" = "History";
+"Chat.History.Edited" = "Edited Version";
+"Chat.History.Deleted" = "Deleted Message";
+"Chat.History.Media" = "Media";
+"Chat.History.Empty" = "No saved versions of this message yet.";
+
 "Settings.BotListSettings" = "Bot Settings";
 "Settings.BotSettings.Biometry" = "Biometry";
 
