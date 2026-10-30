@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - fork/init
+    paths-ignore:
+      - PROJECT.md
   workflow_dispatch:
 
 concurrency:
