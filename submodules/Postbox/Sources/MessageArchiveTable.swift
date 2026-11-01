@@ -143,7 +143,7 @@ final class MessageArchiveTable: Table {
     /// orders other chats fully outside this range.
     private func peerBoundKey(peerId: PeerId, tail: UInt8) -> ValueBoxKey {
         let key = ValueBoxKey(length: 8 + 4 + 4 + 4)
-        memset(key.memory, tail, key.length)
+        memset(key.memory, Int32(tail), key.length)
         key.setInt64(0, value: peerId.toInt64())
         return key
     }
