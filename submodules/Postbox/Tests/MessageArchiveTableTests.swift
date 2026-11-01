@@ -274,8 +274,7 @@ final class MessageArchiveTableTests: XCTestCase {
         self.store(messageId, timestamp: 2020, text: "still delivered")
         self.captureEditVersion(messageId)
 
-        let snapshots = self.latestSnapshots(for: self.peer)
-        XCTAssertEqual(snapshots, [])
+        XCTAssertTrue(self.latestSnapshots(for: self.peer).isEmpty)
     }
 
     func testPeerListingIsIsolatedBetweenChats() {
