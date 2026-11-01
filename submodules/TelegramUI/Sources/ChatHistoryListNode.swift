@@ -1607,6 +1607,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 additionalData.append(.cacheEntry(cachedChannelAdminRanksEntryId(peerId: peerId)))
             }
             additionalData.append(.peer(peerId))
+            additionalData.append(.archivedDeletedMessages(peerId))
             if peerId.namespace == Namespaces.Peer.CloudUser || peerId.namespace == Namespaces.Peer.SecretChat {
                 additionalData.append(.peerIsContact(peerId))
             }
@@ -4689,7 +4690,10 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                         let delay = Double(delayFactor * 0.1)
 
                         if let itemNode = itemNode as? ChatMessageItemView {
-                            itemNode.layer.animateAlpha(from: 0.0, to: 1.0, duration: 0.15, delay: delay)
+                            // Archived rows restore at their ghosted opacity rather than fading
+                            // from 1.0, which would flash them briefly at full strength.
+                            let targetAlpha: CGFloat = itemNode.item?.content.firstMessageAttributes.isArchived == true ? 0.45 : 1.0
+                            itemNode.layer.animateAlpha(from: 0.0, to: targetAlpha, duration: 0.15, delay: delay)
                             itemNode.layer.animateScale(from: 0.94, to: 1.0, duration: 0.4, delay: delay, timingFunction: kCAMediaTimingFunctionSpring)
                         } else if let itemNode = itemNode as? ChatUnreadItemNode {
                             itemNode.layer.animateAlpha(from: 0.0, to: 1.0, duration: 0.15, delay: delay)

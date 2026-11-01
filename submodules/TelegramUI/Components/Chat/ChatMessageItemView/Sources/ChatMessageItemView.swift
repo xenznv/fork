@@ -691,6 +691,10 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     
     open func setupItem(_ item: ChatMessageItem, synchronousLoad: Bool) {
         self.item = item
+        // Rows that render the locally archived content of a deleted message are ghosted; the
+        // value is recomputed on every setup, so a reused node never keeps a stale opacity.
+        let archivedOpacity: CGFloat = 0.45
+        self.alpha = item.content.firstMessageAttributes.isArchived ? archivedOpacity : 1.0
     }
     
     open func updateAccessibilityData(_ accessibilityData: ChatMessageAccessibilityData) {

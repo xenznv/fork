@@ -348,6 +348,29 @@ func chatHistoryEntriesForView(
         entries = flatEntries
     }
     
+    // Locally archived deleted messages: rows that preserve what a message looked like just
+    // before it was removed, inserted into their timestamp position in between the live rows.
+    // Only the plain chat view: pinned, scheduled and message-options subjects have their own
+    // entry semantics, and a ghost row inside them would blur what the subject filters.
+    if let peerId = location.peerId, location.threadId == nil, subject == nil {
+        var archivedVersions: [ArchivedMessageVersion] = []
+        for additionalEntry in view.additionalData {
+            if case let .archivedDeletedMessages(entryPeerId, versions) = additionalEntry, entryPeerId == peerId {
+                for version in versions where version.kind == .deleted {
+                    archivedVersions.append(version)
+                }
+            }
+        }
+        for version in archivedVersions {
+            let message = version.message
+            // A deleted message's stable id was allocated for it once and is never reused, so
+            // the archived row cannot collide with any live row in the same view.
+            let archivedEntry = ChatHistoryEntry.MessageEntry(message, presentationData, false, nil, .none, ChatMessageEntryAttributes(rank: nil, isContact: false, contentTypeHint: .generic, updatingMedia: updatingMedia[message.id], isPlaying: false, isCentered: false, authorStoryStats: nil, displayContinueThreadFooter: false, pinToTop: false, isArchived: true))
+            let insertIndex = entries.firstIndex(where: { $0 > archivedEntry }) ?? entries.count
+            entries.insert(archivedEntry, at: insertIndex)
+        }
+    }
+    
     var addBotForumHeader = false
     if location.threadId == nil, let user = chatPeer as? TelegramUser, let botInfo = user.botInfo, botInfo.flags.contains(.hasForum), botInfo.flags.contains(.forumManagedByUser), !entries.isEmpty, !view.holeEarlier, !view.isLoading {
         addBotForumHeader = true

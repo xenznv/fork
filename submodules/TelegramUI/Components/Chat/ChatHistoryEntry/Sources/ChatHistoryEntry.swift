@@ -21,12 +21,16 @@ public struct ChatMessageEntryAttributes: Equatable {
     public var displayContinueThreadFooter: Bool
     public var pinToTop: Bool
     public var isGiftMessageComposerPreview: Bool
+    /// The entry renders the locally archived content of a message that is no longer (or never
+    /// was) present in the live history: a deleted message's last known state. Such rows are
+    /// ghosted visually and must not participate in grouping or interactions like a live row.
+    public var isArchived: Bool
     /// Set on a message of an album shown alone, before the rest of the album is loaded: the stable id
     /// of the album entry it becomes. The entry keeps that identity, so the album replaces it in place
     /// rather than as a new row (a row held where it was scrolled to would otherwise be lost).
     public var groupStableId: Int64?
     
-    public init(rank: CachedChannelAdminRank?, isContact: Bool, contentTypeHint: ChatMessageEntryContentType, updatingMedia: ChatUpdatingMessageMedia?, isPlaying: Bool, isCentered: Bool, authorStoryStats: EnginePeerStoryStats?, displayContinueThreadFooter: Bool, pinToTop: Bool, isGiftMessageComposerPreview: Bool = false) {
+    public init(rank: CachedChannelAdminRank?, isContact: Bool, contentTypeHint: ChatMessageEntryContentType, updatingMedia: ChatUpdatingMessageMedia?, isPlaying: Bool, isCentered: Bool, authorStoryStats: EnginePeerStoryStats?, displayContinueThreadFooter: Bool, pinToTop: Bool, isGiftMessageComposerPreview: Bool = false, isArchived: Bool = false) {
         self.rank = rank
         self.isContact = isContact
         self.contentTypeHint = contentTypeHint
@@ -37,6 +41,7 @@ public struct ChatMessageEntryAttributes: Equatable {
         self.displayContinueThreadFooter = displayContinueThreadFooter
         self.pinToTop = pinToTop
         self.isGiftMessageComposerPreview = isGiftMessageComposerPreview
+        self.isArchived = isArchived
         self.groupStableId = nil
     }
     
@@ -51,6 +56,7 @@ public struct ChatMessageEntryAttributes: Equatable {
         self.displayContinueThreadFooter = false
         self.pinToTop = false
         self.isGiftMessageComposerPreview = false
+        self.isArchived = false
         self.groupStableId = nil
     }
 }
