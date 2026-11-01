@@ -148,10 +148,12 @@ final class MessageArchiveTable: Table {
         return key
     }
     
-    /// The newest snapshot of every archived message of one chat, newest messages first.
+    /// The newest deleted snapshot of every message of one chat, newest messages first.
     /// The peer's key range is read in descending order, so the first record met for a
-    /// (namespace, id) pair is its latest capture; reading stops early once `limit`
-    /// distinct messages are collected.
+    /// (namespace, id) pair is its latest capture; records are only counted when the
+    /// capture is a deletion (edit-version records are skipped and let older records of
+    /// the same message through), and reading stops early once `limit` distinct
+    /// messages are collected.
     func latestSnapshotsForPeer(peerId: PeerId, limit: Int) -> [ArchivedMessageRecord] {
         var latest: [ArchivedMessageRecord?] = []
         var seen: Set<MessageId> = Set()
@@ -160,7 +162,7 @@ final class MessageArchiveTable: Table {
                 guard key.length == 8 + 4 + 4 + 4 else {
                     return true
                 }
-                if let record = readArchivedMessageRecord(key: key, value: value) {
+                if let record = readArchivedMessageRecord(key: key, value: value), record.kind == .deleted {
                     if !seen.contains(record.id) {
                         seen.insert(record.id)
                         latest.append(record)

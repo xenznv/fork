@@ -281,6 +281,7 @@ final class MessageArchiveTableTests: XCTestCase {
         let otherPeer = MessageHistoryTableFixture.peerId(311)
         let own = self.id(65)
         self.store(own, timestamp: 2030, text: "own deletion")
+        self.remove([own])
 
         let other = MessageId(peerId: otherPeer, namespace: self.namespace, id: 12)
         let _ = self.fixture.addMessages([MessageHistoryTableFixture.storeMessage(id: other, timestamp: 2031, text: "other chat deletion")])
