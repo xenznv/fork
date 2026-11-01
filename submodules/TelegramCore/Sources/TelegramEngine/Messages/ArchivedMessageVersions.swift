@@ -44,4 +44,18 @@ public extension TelegramEngine.Messages {
             return transaction.archivedMessageVersionCount(id)
         }
     }
+
+    /// The newest captured snapshot of every deleted message of one chat, newest first.
+    /// Re-emits when the chat's message history changes (the deleted-messages stretch of
+    /// the history view already updates on any removal), and reads the archive table
+    /// fresh on each emission.
+    func archivedDeletedMessageSnapshots(peerId: EnginePeer.Id) -> Signal<[EngineMessageArchivedVersion], NoError> {
+        let deletedMessagesKey = PostboxViewKey.deletedMessages(peerId: peerId)
+        return self.account.postbox.combinedView(keys: [deletedMessagesKey])
+        |> mapToSignal { _ -> Signal<[EngineMessageArchivedVersion], NoError> in
+            return self.account.postbox.transaction { transaction -> [EngineMessageArchivedVersion] in
+                return transaction.archivedDeletedMessageVersions(peerId: peerId).filter { $0.kind == .deleted }.map(EngineMessageArchivedVersion.init(version:))
+            }
+        }
+    }
 }
