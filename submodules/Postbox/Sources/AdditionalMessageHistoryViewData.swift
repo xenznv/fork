@@ -12,6 +12,7 @@ public enum AdditionalMessageHistoryViewData: Equatable {
     case peer(PeerId)
     case peerIsContact(PeerId)
     case message(MessageId)
+    case archivedDeletedMessages(PeerId)
 }
 
 public enum AdditionalMessageHistoryViewDataEntry {
@@ -26,4 +27,5 @@ public enum AdditionalMessageHistoryViewDataEntry {
     case peerIsContact(PeerId, Bool)
     case peer(PeerId, Peer?)
     case message(MessageId, [Message])
+    case archivedDeletedMessages(PeerId, [ArchivedMessageVersion])
 }

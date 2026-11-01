@@ -164,6 +164,13 @@ public final class Transaction {
         return self.postbox?.archivedMessageVersionCount(id) ?? 0
     }
     
+    /// The latest captured snapshot of every deleted message of one chat, newest first.
+    /// Edit versions do not count as deletions and are only reachable per-message.
+    public func archivedDeletedMessageVersions(peerId: PeerId, limit: Int = 256) -> [ArchivedMessageVersion] {
+        assert(!self.disposed)
+        return self.postbox?.archivedDeletedMessageVersions(peerId: peerId, limit: limit) ?? []
+    }
+    
     public func deleteMessagesInRange(peerId: PeerId, namespace: MessageId.Namespace, minId: MessageId.Id, maxId: MessageId.Id, forEachMedia: ((Media) -> Void)?) {
         assert(!self.disposed)
         self.postbox?.deleteMessagesInRange(peerId: peerId, namespace: namespace, minId: minId, maxId: maxId, forEachMedia: forEachMedia)
@@ -2345,6 +2352,15 @@ final class PostboxImpl {
         return self.messageArchiveTable.recordCount(id: id)
     }
     
+    func archivedDeletedMessageVersions(peerId: PeerId, limit: Int) -> [ArchivedMessageVersion] {
+        return self.messageArchiveTable.latestSnapshotsForPeer(peerId: peerId, limit: limit).compactMap { record in
+            if record.kind != .deleted {
+                return nil
+            }
+            return ArchivedMessageVersion(message: self.renderIntermediateMessage(record.message), kind: record.kind, captureTimestamp: record.captureTimestamp, captureIndex: record.captureIndex)
+        }
+    }
+    
     fileprivate func deleteMessagesInRange(peerId: PeerId, namespace: MessageId.Namespace, minId: MessageId.Id, maxId: MessageId.Id, forEachMedia: ((Media) -> Void)?) {
         self.messageHistoryTable.removeMessagesInRange(peerId: peerId, namespace: namespace, minId: minId, maxId: maxId, operationsByPeerId: &self.currentOperationsByPeerId, updatedMedia: &self.currentUpdatedMedia, unsentMessageOperations: &currentUnsentOperations, updatedPeerReadStateOperations: &self.currentUpdatedSynchronizeReadStateOperations, globalTagsOperations: &self.currentGlobalTagsOperations, pendingActionsOperations: &self.currentPendingMessageActionsOperations, updatedMessageActionsSummaries: &self.currentUpdatedMessageActionsSummaries, updatedMessageTagSummaries: &self.currentUpdatedMessageTagSummaries, invalidateMessageTagSummaries: &self.currentInvalidateMessageTagSummaries, localTagsOperations: &self.currentLocalTagsOperations, timestampBasedMessageAttributesOperations: &self.currentTimestampBasedMessageAttributesOperations, forEachMedia: forEachMedia)
     }
@@ -3689,6 +3705,8 @@ final class PostboxImpl {
                     additionalDataEntries.append(.peerIsContact(peerId, value))
                 case let .peer(peerId):
                     additionalDataEntries.append(.peer(peerId, self.peerTable.get(peerId)))
+                case let .archivedDeletedMessages(peerId):
+                    additionalDataEntries.append(.archivedDeletedMessages(peerId, self.archivedDeletedMessageVersions(peerId: peerId, limit: 256)))
             }
         }
         

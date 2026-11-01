@@ -138,6 +138,41 @@ final class MessageArchiveTable: Table {
         return records
     }
     
+    /// Boundary key that brackets all records of one chat inside the table's key space.
+    /// Keys are big-endian, so the first differing byte before the chat's tail already
+    /// orders other chats fully outside this range.
+    private func peerBoundKey(peerId: PeerId, tail: UInt8) -> ValueBoxKey {
+        let key = ValueBoxKey(length: 8 + 4 + 4 + 4)
+        memset(key.memory, tail, key.length)
+        key.setInt64(0, value: peerId.toInt64())
+        return key
+    }
+    
+    /// The newest snapshot of every archived message of one chat, newest messages first.
+    /// The peer's key range is read in descending order, so the first record met for a
+    /// (namespace, id) pair is its latest capture; reading stops early once `limit`
+    /// distinct messages are collected.
+    func latestSnapshotsForPeer(peerId: PeerId, limit: Int) -> [ArchivedMessageRecord] {
+        var latest: [ArchivedMessageRecord?] = []
+        var seen: Set<MessageId> = Set()
+        if limit > 0 {
+            self.valueBox.range(self.table, start: self.peerBoundKey(peerId: peerId, tail: 0xff), end: self.peerBoundKey(peerId: peerId, tail: 0x00), values: { key, value in
+                guard key.length == 8 + 4 + 4 + 4 else {
+                    return true
+                }
+                if let record = readArchivedMessageRecord(key: key, value: value) {
+                    if !seen.contains(record.id) {
+                        seen.insert(record.id)
+                        latest.append(record)
+                        return latest.count < limit
+                    }
+                }
+                return true
+            }, limit: 0)
+        }
+        return latest.compactMap { $0 }
+    }
+    
     func enumerateAll(_ f: (ArchivedMessageRecord) -> Bool) {
         self.valueBox.range(self.table, start: self.lowerBound(), end: self.upperBound(), values: { key, value in
             if let record = readArchivedMessageRecord(key: key, value: value) {

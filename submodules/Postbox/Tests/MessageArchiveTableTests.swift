@@ -73,6 +73,14 @@ final class MessageArchiveTableTests: XCTestCase {
         return count
     }
 
+    private func latestSnapshots(for peer: PeerId, limit: Int = 256) -> [ArchivedMessageRecord] {
+        var result: [ArchivedMessageRecord] = []
+        self.fixture.queue.sync {
+            result = self.fixture.messageArchiveTable.latestSnapshotsForPeer(peerId: peer, limit: limit)
+        }
+        return result
+    }
+
     // MARK: - Deleted snapshots
 
     func testDeletingMessageStoresSnapshotThatDecodesBack() {
@@ -221,5 +229,80 @@ final class MessageArchiveTableTests: XCTestCase {
         }
         XCTAssertEqual(seenIds, Set([first.id, second.id]))
         XCTAssertEqual(seenKinds, [.deleted, .deleted])
+    }
+
+    // MARK: - Per-peer snapshots
+
+    func testPeerListingReturnsNewestDeletedSnapshotPerMessage() {
+        let first = self.id(61)
+        let second = self.id(62)
+        self.store(first, timestamp: 2000, text: "first deleted")
+        self.store(second, timestamp: 2001, text: "second deleted")
+
+        self.remove([first, second])
+
+        let snapshots = self.latestSnapshots(for: self.peer)
+        XCTAssertEqual(snapshots.count, 2)
+        // The chat is read from the highest key downwards, so the newest message comes first.
+        XCTAssertEqual(snapshots.map { $0.id.id }, [second.id, first.id])
+        XCTAssertEqual(snapshots.map { $0.message.text }, ["second deleted", "first deleted"])
+        for record in snapshots {
+            if record.kind != .deleted {
+                XCTFail("unexpected kind \(record.kind)")
+            }
+        }
+    }
+
+    func testPeerListingKeepsOnlyTheLatestCaptureOfADeletedMessage() {
+        let messageId = self.id(63)
+        self.store(messageId, timestamp: 2010, text: "initial")
+        self.captureEditVersion(messageId)
+        self.replaceContent(messageId, timestamp: 2010, text: "edited")
+
+        self.remove([messageId])
+
+        XCTAssertEqual(self.storedRecordCount(), 2)
+        let snapshots = self.latestSnapshots(for: self.peer)
+        XCTAssertEqual(snapshots.count, 1)
+        XCTAssertEqual(snapshots.first?.captureIndex, 2)
+        XCTAssertEqual(snapshots.first?.kind, .deleted)
+        XCTAssertEqual(snapshots.first?.message.text, "edited")
+    }
+
+    func testPeerListingSkipsEditOnlyHistory() {
+        let messageId = self.id(64)
+        self.store(messageId, timestamp: 2020, text: "still delivered")
+        self.captureEditVersion(messageId)
+
+        let snapshots = self.latestSnapshots(for: self.peer)
+        XCTAssertEqual(snapshots, [])
+    }
+
+    func testPeerListingIsIsolatedBetweenChats() {
+        let otherPeer = MessageHistoryTableFixture.peerId(311)
+        let own = self.id(65)
+        self.store(own, timestamp: 2030, text: "own deletion")
+
+        let other = MessageId(peerId: otherPeer, namespace: self.namespace, id: 12)
+        let _ = self.fixture.addMessages([MessageHistoryTableFixture.storeMessage(id: other, timestamp: 2031, text: "other chat deletion")])
+        let _ = self.fixture.removeMessages([other])
+
+        XCTAssertEqual(self.latestSnapshots(for: self.peer).map { $0.message.text }, ["own deletion"])
+        let otherSnapshots = self.latestSnapshots(for: otherPeer)
+        XCTAssertEqual(otherSnapshots.count, 1)
+        XCTAssertEqual(otherSnapshots.first?.message.text, "other chat deletion")
+    }
+
+    func testPeerListingRespectsLimit() {
+        var ids: [MessageId] = []
+        for (offset, idValue) in [81, 82, 83].enumerated() {
+            let messageId = self.id(Int32(idValue))
+            self.store(messageId, timestamp: Int32(2040 + offset), text: "msg \(idValue)")
+            ids.append(messageId)
+        }
+        self.remove(ids)
+
+        XCTAssertEqual(self.latestSnapshots(for: self.peer, limit: 2).map { $0.id.id }, [83, 82])
+        XCTAssertEqual(self.latestSnapshots(for: self.peer, limit: 10).count, 3)
     }
 }

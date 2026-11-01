@@ -956,6 +956,20 @@ final class MutableMessageHistoryView: MutablePostboxView {
                     updated[i] = .peer(peerId, peer)
                     hasChanges = true
                 }
+            case let .archivedDeletedMessages(peerId, _):
+                var hasRemovals = false
+                if let operations = transaction.currentOperationsByPeerId[peerId] {
+                    for operation in operations {
+                        if case .Remove = operation {
+                            hasRemovals = true
+                            break
+                        }
+                    }
+                }
+                if hasRemovals {
+                    updated[i] = .archivedDeletedMessages(peerId, postbox.archivedDeletedMessageVersions(peerId: peerId, limit: 256))
+                    hasChanges = true
+                }
             }
         }
         if let cachedData = currentCachedPeerData, !cachedData.messageIds.isEmpty {
