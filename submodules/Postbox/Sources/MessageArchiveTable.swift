@@ -245,10 +245,15 @@ final class MessageArchiveTable: Table {
             return []
         }
         var records: [ArchivedMessageExportRecord] = []
-        let start: ValueBoxKey
+        var start: ValueBoxKey
         if let after = after {
             let id = MessageId(peerId: after.peerId, namespace: after.namespace, id: after.id)
-            start = self.key(id, captureIndex: after.captureIndex).successor
+            // The range start is exclusive, so the cursor's own key (without a `.successor`)
+            // is already the correct lower bound. Taking `successor` here would be wrong:
+            // the capture index is stored little-endian, so incrementing the last byte
+            // (its most significant byte in memcmp order) would skip captureIndex+1 keys
+            // and hide every capture after the first for this message.
+            start = self.key(id, captureIndex: after.captureIndex)
         } else {
             start = self.lowerBound()
         }
