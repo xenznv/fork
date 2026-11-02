@@ -792,8 +792,10 @@ final class MessageHistoryTable: Table {
         return result
     }
     
-    // Copies the current stored entry for a message, without ensuring it stays alive past
-    // the current transaction step. Used by the archive capture logic.
+    // Captures the current stored entry for a message while the index, the stored data and
+    // the media rows it references are still present in the current transaction, so referenced
+    // media can be resolved into the embedded region. Used by the archive capture logic; the
+    // archived copy must stay renderable after the live rows are removed.
     func archivedEntryValue(_ id: MessageId) -> (index: MessageIndex, value: ReadBuffer)? {
         guard let index = self.messageHistoryIndexTable.getIndex(id) else {
             return nil
@@ -803,7 +805,73 @@ final class MessageHistoryTable: Table {
         }
         let bytes = malloc(value.length)!
         memcpy(bytes, value.memory, value.length)
-        return (index, ReadBuffer(memory: bytes, length: value.length, freeWhenDone: true))
+        let valueCopy = ReadBuffer(memory: bytes, length: value.length, freeWhenDone: true)
+        
+        // Decode the copy to learn the boundaries of the self-delimiting entry tail
+        // (attributes | embedded media | referenced media | custom tags) and the media ids
+        // the entry references.
+        let key = self.key(index)
+        var attributesDataOffset: Int = 0
+        let entry = self.readIntermediateEntry(key, value: valueCopy, attributesDataOffset: &attributesDataOffset)
+        let message = entry.message
+        
+        var canonizedMedia: [Media] = []
+        for mediaId in message.referencedMedia {
+            if let media = self.messageMediaTable.get(mediaId, embedded: { _, _ in
+                return nil
+            })?.1 {
+                canonizedMedia.append(media)
+            }
+        }
+        
+        if canonizedMedia.isEmpty {
+            return (index, valueCopy)
+        }
+        
+        let embeddedMediaOffset = attributesDataOffset + message.attributesData.length
+        let embeddedMediaLength = message.embeddedMediaData.length
+        guard embeddedMediaOffset + embeddedMediaLength <= valueCopy.length else {
+            return (index, valueCopy)
+        }
+        
+        let referencedRegionLength = 4 + 12 * message.referencedMedia.count
+        let tailOffset = embeddedMediaOffset + embeddedMediaLength + referencedRegionLength
+        
+        var originalEmbeddedMediaCount: Int32 = 0
+        if embeddedMediaLength >= 4 {
+            let regionReader = ReadBuffer(memoryBufferNoCopy: valueCopy)
+            regionReader.offset = embeddedMediaOffset
+            regionReader.read(&originalEmbeddedMediaCount, offset: 0, length: 4)
+        }
+        
+        let result = WriteBuffer(capacity: valueCopy.length + 64)
+        // Header and attributes regions are copied verbatim.
+        result.write(valueCopy.memory, offset: 0, length: embeddedMediaOffset)
+        // Rebuilt embedded media region: the originally embedded entries plus the resolved
+        // referenced media, encoded the same way the add path encodes embedded media.
+        var newEmbeddedMediaCount = originalEmbeddedMediaCount + Int32(canonizedMedia.count)
+        result.write(&newEmbeddedMediaCount, offset: 0, length: 4)
+        if embeddedMediaLength > 4 {
+            result.write(valueCopy.memory + embeddedMediaOffset + 4, offset: 0, length: embeddedMediaLength - 4)
+        }
+        let sharedEncoder = PostboxEncoder()
+        for media in canonizedMedia {
+            sharedEncoder.reset()
+            sharedEncoder.encodeRootObject(media)
+            let mediaBuffer = sharedEncoder.memoryBuffer()
+            var mediaBufferLength = Int32(mediaBuffer.length)
+            result.write(&mediaBufferLength, offset: 0, length: 4)
+            result.write(mediaBuffer.memory, offset: 0, length: mediaBuffer.length)
+        }
+        // The referenced region becomes empty: the media it named now lives embedded.
+        var referencedMediaCount: Int32 = 0
+        result.write(&referencedMediaCount, offset: 0, length: 4)
+        // Custom tags region is copied verbatim.
+        if tailOffset < valueCopy.length {
+            result.write(valueCopy.memory + tailOffset, offset: 0, length: valueCopy.length - tailOffset)
+        }
+        
+        return (index, result.makeReadBufferAndReset())
     }
     
     func getMessage(_ index: MessageIndex) -> IntermediateMessage? {
@@ -2475,7 +2543,7 @@ final class MessageHistoryTable: Table {
         return nil
     }
     
-    private func readIntermediateEntry(_ key: ValueBoxKey, value: ReadBuffer) -> IntermediateMessageHistoryEntry {
+    private func readIntermediateEntry(_ key: ValueBoxKey, value: ReadBuffer, attributesDataOffset: UnsafeMutablePointer<Int>? = nil) -> IntermediateMessageHistoryEntry {
         let index = extractKey(key)
         
         var type: Int8 = 0
@@ -2610,6 +2678,7 @@ final class MessageHistoryTable: Table {
             value.skip(Int(textLength))
             
             let attributesOffset = value.offset
+            attributesDataOffset?.pointee = attributesOffset
             var attributeCount: Int32 = 0
             value.read(&attributeCount, offset: 0, length: 4)
             for _ in 0 ..< attributeCount {

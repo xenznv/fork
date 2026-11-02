@@ -105,6 +105,51 @@ final class MessageArchiveTableTests: XCTestCase {
         XCTAssertEqual(self.storedRecordCount(), 1)
     }
 
+    func testDeletingMessageCanonizesReferencedMediaIntoSnapshot() {
+        let holder = self.id(15)
+        let sharer = self.id(16)
+        let mediaId = MediaId(namespace: 0, id: 102)
+
+        // The first message embeds the media row; the second message ends up referencing it.
+        self.store(holder, timestamp: 1500, text: "holder", media: [FixtureMedia(id: mediaId, label: "shared")])
+        self.store(sharer, timestamp: 1501, text: "sharer", media: [FixtureMedia(id: mediaId, label: "shared")])
+
+        XCTAssertEqual(self.fixture.referenceCount(mediaId), 2, "expected the shared media row to become Direct and referenced by both messages")
+
+        self.remove([sharer])
+
+        var records = self.records(sharer)
+        XCTAssertEqual(records.count, 1)
+        if let record = records.first {
+            XCTAssertTrue(record.message.referencedMedia.isEmpty, "referenced media must be resolved into the snapshot at capture time")
+            var media: [Media] = []
+            self.fixture.queue.sync {
+                media = self.fixture.messageHistoryTable.renderMessageMedia(referencedMedia: record.message.referencedMedia, embeddedMediaData: record.message.embeddedMediaData)
+            }
+            guard let fixtureMedia = media.first as? FixtureMedia else {
+                XCTFail("canonized media did not decode back as FixtureMedia")
+                return
+            }
+            XCTAssertEqual(fixtureMedia.id, mediaId)
+            XCTAssertEqual(fixtureMedia.label, "shared")
+        }
+
+        // The media row still exists for the first message; removing it as well must not
+        // affect the already captured snapshot.
+        self.remove([holder])
+
+        records = self.records(sharer)
+        XCTAssertEqual(records.count, 1)
+        if let record = records.first {
+            XCTAssertNil(self.fixture.mediaEntry(mediaId))
+            var media: [Media] = []
+            self.fixture.queue.sync {
+                media = self.fixture.messageHistoryTable.renderMessageMedia(referencedMedia: record.message.referencedMedia, embeddedMediaData: record.message.embeddedMediaData)
+            }
+            XCTAssertEqual((media.first as? FixtureMedia)?.label, "shared")
+        }
+    }
+
     func testDeletingMessageKeepsEmbeddedMediaBytes() {
         let messageId = self.id(12)
         let mediaId = MediaId(namespace: 0, id: 101)
