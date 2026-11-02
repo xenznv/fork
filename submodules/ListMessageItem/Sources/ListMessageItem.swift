@@ -124,9 +124,9 @@ public final class ListMessageItem: ListViewItem, ItemListItem {
         isAttachMusic: Bool = false,
         displayFileInfo: Bool = true,
         displayBackground: Bool = false,
-        isArchived: Bool = false,
         canReorder: Bool = false,
         richMessageQueueId: EngineMessage.Id? = nil,
+        isArchived: Bool = false,
         style: ItemListStyle = .plain,
         sectionId: ItemListSectionId = 0
     ) {
