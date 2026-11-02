@@ -319,8 +319,10 @@ final class MessageArchiveTableTests: XCTestCase {
     func testExportPagesThroughEveryCaptureExactlyOnce() {
         let edited = self.id(1)
         self.store(edited, timestamp: 100, text: "one")
-        self.replaceContent(edited, timestamp: 100, text: "two")
+        // Capture before replacing the content: the archive dedupes identical payloads, so
+        // the edit version and the later deletion must carry different texts.
         self.captureEditVersion(edited)
+        self.replaceContent(edited, timestamp: 100, text: "two")
         self.remove([edited])
 
         let deleted = self.id(2)
@@ -378,8 +380,8 @@ final class MessageArchiveTableTests: XCTestCase {
     func testExportEventIdIsStablePerCaptureAndUniqueBetweenCaptures() {
         let messageId = self.id(4)
         self.store(messageId, timestamp: 400, text: "before")
-        self.replaceContent(messageId, timestamp: 400, text: "after")
         self.captureEditVersion(messageId)
+        self.replaceContent(messageId, timestamp: 400, text: "after")
         self.remove([messageId])
 
         let records = self.exportPage(after: nil, limit: 10)

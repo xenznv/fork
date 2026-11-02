@@ -256,15 +256,22 @@ final class MessageArchiveTable: Table {
             guard key.length == 8 + 4 + 4 + 4, value.length >= 4 + 4 + 1 else {
                 return true
             }
+            // Copy the record before touching the buffer: reading advances its position,
+            // and the payload must stay the whole stored value.
+            let payload = value.makeData()
             var captureTimestamp: Int32 = 0
-            value.read(&captureTimestamp, offset: 0, length: 4)
+            payload.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+                if let base = bytes.baseAddress, bytes.count >= 4 + 4 {
+                    memcpy(&captureTimestamp, base.advanced(by: 4), 4)
+                }
+            }
             let cursor = ArchivedMessageExportCursor(
                 peerId: PeerId(key.getInt64(0)),
                 namespace: key.getInt32(8),
                 id: key.getInt32(8 + 4),
                 captureIndex: key.getInt32(8 + 4 + 4)
             )
-            records.append(ArchivedMessageExportRecord(cursor: cursor, eventTime: captureTimestamp, payload: value.makeData()))
+            records.append(ArchivedMessageExportRecord(cursor: cursor, eventTime: captureTimestamp, payload: payload))
             return records.count < limit
         }, limit: 0)
         return records
