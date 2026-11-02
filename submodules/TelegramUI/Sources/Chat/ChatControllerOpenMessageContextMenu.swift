@@ -75,6 +75,38 @@ extension ChatControllerImpl {
 
                 // The locally archived versions of this message. The entry is only offered when
                 // there is something to look at, so the menu stays unchanged for ordinary messages.
+                // Actions on an archived row must not address the live history: Reply,
+                // Forward and Delete all act on a message that is no longer there, so
+                // they are removed. The History entry added below stays available.
+                if self.chatDisplayNode.historyNode.messageEntryIsArchivedInCurrentHistoryView(message.id), case let .list(itemList) = actions.content {
+                    let restrictedTexts: [String] = [
+                        presentationData.strings.Conversation_ContextMenuReply,
+                        presentationData.strings.Conversation_ContextMenuForward,
+                        presentationData.strings.Conversation_ContextMenuDelete
+                    ]
+                    var filtered: [ContextMenuItem] = []
+                    for item in itemList {
+                        if case let .action(actionItem) = item, restrictedTexts.contains(actionItem.text) {
+                            continue
+                        }
+                        filtered.append(item)
+                    }
+                    var collapsed: [ContextMenuItem] = []
+                    for item in filtered {
+                        if case .separator = item, case .separator? = collapsed.last {
+                            continue
+                        }
+                        collapsed.append(item)
+                    }
+                    while let first = collapsed.first, case .separator = first {
+                        collapsed.removeFirst()
+                    }
+                    while let last = collapsed.last, case .separator = last {
+                        collapsed.removeLast()
+                    }
+                    actions.content = .list(collapsed)
+                }
+                
                 if archivedVersionCount > 0, case var .list(itemList) = actions.content {
                     let historyItem = ContextMenuItem.action(ContextMenuActionItem(text: presentationData.strings.Chat_ContextMenu_History, icon: { theme in
                         return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Time"), color: theme.actionSheet.primaryTextColor)

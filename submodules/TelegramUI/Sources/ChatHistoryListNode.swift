@@ -4073,6 +4073,25 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         return nil
     }
     
+    public func messageEntryIsArchivedInCurrentHistoryView(_ id: MessageId) -> Bool {
+        if let historyView = self.historyView {
+            for entry in historyView.filteredEntries {
+                if case let .MessageEntry(message, _, _, _, _, attributes) = entry {
+                    if message.id == id {
+                        return attributes.isArchived
+                    }
+                } else if case let .MessageGroupEntry(_, messages, _) = entry {
+                    for (message, _, _, attributes, _) in messages {
+                        if message.id == id {
+                            return attributes.isArchived
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+    
     public func forEachMessageInCurrentHistoryView(_ f: (Message) -> Bool) {
         if let historyView = self.historyView {
             for entry in historyView.filteredEntries {
