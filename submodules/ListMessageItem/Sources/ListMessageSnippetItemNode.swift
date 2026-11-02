@@ -208,10 +208,6 @@ public final class ListMessageSnippetItemNode: ListMessageNode {
         self.view.addGestureRecognizer(recognizer)
     }
     
-    override func setupItem(_ item: ListMessageItem) {
-        self.item = item
-    }
-    
     override public func layoutForParams(_ params: ListViewItemLayoutParams, item: ListViewItem, neighbors: ListViewItemNeighbors) {
         if let item = item as? ListMessageItem {
             let doLayout = self.asyncLayout()

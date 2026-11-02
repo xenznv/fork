@@ -553,10 +553,6 @@ public final class ListMessageFileItemNode: ListMessageNode {
         fatalError("init(coder:) has not been implemented")
     }
     
-    override func setupItem(_ item: ListMessageItem) {
-        self.item = item
-    }
-    
     @objc private func iconButtonPressed() {
         guard let item = self.item, let message = item.message else {
             return

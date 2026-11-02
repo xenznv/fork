@@ -15,6 +15,12 @@ public class ListMessageNode: ListViewItemNode {
     
     func setupItem(_ item: ListMessageItem) {
         self.item = item
+        // Rows carrying the locally archived copy of a deleted message are ghosted with the same
+        // opacity ChatMessageItemView uses in the bubble layout, so a deleted message looks alike
+        // in both list modes. Recomputed on every setup, so a reused node never keeps a stale
+        // opacity.
+        let archivedOpacity: CGFloat = 0.45
+        self.alpha = item.isArchived ? archivedOpacity : 1.0
     }
     
     override public func layoutForParams(_ params: ListViewItemLayoutParams, item: ListViewItem, neighbors: ListViewItemNeighbors) {

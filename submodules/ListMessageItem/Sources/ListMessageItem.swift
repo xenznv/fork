@@ -80,6 +80,9 @@ public final class ListMessageItem: ListViewItem, ItemListItem {
     let isAttachMusic: Bool
     let displayFileInfo: Bool
     let displayBackground: Bool
+    /// True when the row renders the locally archived copy of a deleted message: the node is
+    /// ghosted to the same opacity the bubble layout uses for such rows.
+    let isArchived: Bool
     let canReorder: Bool
     let style: ItemListStyle
     
@@ -121,6 +124,7 @@ public final class ListMessageItem: ListViewItem, ItemListItem {
         isAttachMusic: Bool = false,
         displayFileInfo: Bool = true,
         displayBackground: Bool = false,
+        isArchived: Bool = false,
         canReorder: Bool = false,
         richMessageQueueId: EngineMessage.Id? = nil,
         style: ItemListStyle = .plain,
@@ -151,6 +155,7 @@ public final class ListMessageItem: ListViewItem, ItemListItem {
         self.isAttachMusic = isAttachMusic
         self.displayFileInfo = displayFileInfo
         self.displayBackground = displayBackground
+        self.isArchived = isArchived
         self.canReorder = canReorder
         self.style = style
         self.sectionId = sectionId
