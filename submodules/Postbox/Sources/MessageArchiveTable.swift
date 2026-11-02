@@ -22,6 +22,59 @@ public struct ArchivedMessageVersion {
     }
 }
 
+/// A position in the archive's key order. Export walks records in the same order the
+/// table stores them, so a cursor fully identifies where the next page starts.
+public struct ArchivedMessageExportCursor: Equatable, Hashable {
+    public let peerId: PeerId
+    public let namespace: MessageId.Namespace
+    public let id: MessageId.Id
+    public let captureIndex: Int32
+
+    public init(peerId: PeerId, namespace: MessageId.Namespace, id: MessageId.Id, captureIndex: Int32) {
+        self.peerId = peerId
+        self.namespace = namespace
+        self.id = id
+        self.captureIndex = captureIndex
+    }
+}
+
+/// One archived record prepared for shipping off-device. `payload` is the stored value
+/// verbatim, so the receiving side reads it with the same layout `ArchivedMessageVersion`
+/// is decoded from.
+public struct ArchivedMessageExportEvent {
+    /// Stable for a given capture, so a receiver can ignore repeated delivery of it.
+    public let eventId: String
+    public let stream: String
+    /// Capture time in Unix seconds; a retry does not depend on the current device clock.
+    public let eventTime: Int32
+    public let payload: Data
+}
+
+/// One page of export events plus the cursor to continue from; `nextCursor` is nil when
+/// no records follow the page.
+public struct ArchivedMessageExportBatch {
+    public let events: [ArchivedMessageExportEvent]
+    public let nextCursor: ArchivedMessageExportCursor?
+}
+
+/// A stored capture as it comes out of the table, before it is shaped into an event.
+struct ArchivedMessageExportRecord {
+    let cursor: ArchivedMessageExportCursor
+    let eventTime: Int32
+    let payload: Data
+}
+
+/// Builds the event identity shared by every delivery of the same capture. Kept apart
+/// from the table so that the format can be tested without a running Postbox.
+func archivedMessageExportEvent(record: ArchivedMessageExportRecord) -> ArchivedMessageExportEvent {
+    return ArchivedMessageExportEvent(
+        eventId: "message_archive:\(record.cursor.peerId.toInt64()):\(record.cursor.namespace):\(record.cursor.id):\(record.cursor.captureIndex)",
+        stream: "message_archive",
+        eventTime: record.eventTime,
+        payload: record.payload
+    )
+}
+
 struct ArchivedMessageRecord {
     let id: MessageId
     let timestamp: Int32
@@ -184,6 +237,39 @@ final class MessageArchiveTable: Table {
         }, limit: 0)
     }
     
+    /// One page of records in key order, starting strictly after `after`. The payload is
+    /// the stored value verbatim: header (message timestamp, capture timestamp, kind)
+    /// followed by the entry bytes.
+    func exportRecords(after: ArchivedMessageExportCursor?, limit: Int) -> [ArchivedMessageExportRecord] {
+        guard limit > 0 else {
+            return []
+        }
+        var records: [ArchivedMessageExportRecord] = []
+        let start: ValueBoxKey
+        if let after = after {
+            let id = MessageId(peerId: after.peerId, namespace: after.namespace, id: after.id)
+            start = self.key(id, captureIndex: after.captureIndex).successor
+        } else {
+            start = self.lowerBound()
+        }
+        self.valueBox.range(self.table, start: start, end: self.upperBound(), values: { key, value in
+            guard key.length == 8 + 4 + 4 + 4, value.length >= 4 + 4 + 1 else {
+                return true
+            }
+            var captureTimestamp: Int32 = 0
+            value.read(&captureTimestamp, offset: 0, length: 4)
+            let cursor = ArchivedMessageExportCursor(
+                peerId: PeerId(key.getInt64(0)),
+                namespace: key.getInt32(8),
+                id: key.getInt32(8 + 4),
+                captureIndex: key.getInt32(8 + 4 + 4)
+            )
+            records.append(ArchivedMessageExportRecord(cursor: cursor, eventTime: captureTimestamp, payload: value.makeData()))
+            return records.count < limit
+        }, limit: 0)
+        return records
+    }
+
     func recordCount(id: MessageId) -> Int {
         var count = 0
         self.valueBox.range(self.table, start: self.key(id, captureIndex: 1).predecessor, end: self.key(id, captureIndex: Int32.max).successor, keys: { _ in

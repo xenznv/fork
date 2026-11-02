@@ -305,4 +305,98 @@ final class MessageArchiveTableTests: XCTestCase {
         XCTAssertEqual(self.latestSnapshots(for: self.peer, limit: 2).map { $0.id.id }, [83, 82])
         XCTAssertEqual(self.latestSnapshots(for: self.peer, limit: 10).count, 3)
     }
+
+    // MARK: - Export
+
+    private func exportPage(after cursor: ArchivedMessageExportCursor?, limit: Int) -> [ArchivedMessageExportRecord] {
+        var page: [ArchivedMessageExportRecord] = []
+        self.fixture.queue.sync {
+            page = self.fixture.messageArchiveTable.exportRecords(after: cursor, limit: limit)
+        }
+        return page
+    }
+
+    func testExportPagesThroughEveryCaptureExactlyOnce() {
+        let edited = self.id(1)
+        self.store(edited, timestamp: 100, text: "one")
+        self.replaceContent(edited, timestamp: 100, text: "two")
+        self.captureEditVersion(edited)
+        self.remove([edited])
+
+        let deleted = self.id(2)
+        self.store(deleted, timestamp: 200, text: "three")
+        self.remove([deleted])
+
+        var collected: [ArchivedMessageExportRecord] = []
+        var cursor: ArchivedMessageExportCursor?
+        var pages = 0
+        while true {
+            let page = self.exportPage(after: cursor, limit: 1)
+            if page.isEmpty {
+                break
+            }
+            pages += 1
+            collected.append(contentsOf: page)
+            cursor = page.last?.cursor
+            XCTAssertLessThanOrEqual(pages, 10)
+        }
+
+        XCTAssertEqual(collected.count, 3)
+        XCTAssertEqual(collected.map { $0.cursor.id }, [edited.id, edited.id, deleted.id])
+        XCTAssertEqual(collected.map { $0.cursor.captureIndex }, [1, 2, 1])
+        XCTAssertEqual(Set(collected.map { $0.cursor }).count, 3)
+    }
+
+    func testExportPayloadCarriesStoredHeaderAndKind() {
+        let messageId = self.id(3)
+        self.store(messageId, timestamp: 300, text: "content")
+        self.remove([messageId])
+
+        let records = self.exportPage(after: nil, limit: 10)
+        XCTAssertEqual(records.count, 1)
+        guard let record = records.first else {
+            return
+        }
+
+        var messageTimestamp: Int32 = 0
+        var captureTimestamp: Int32 = 0
+        var kind: Int8 = 0
+        record.payload.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+            guard let base = bytes.baseAddress, bytes.count >= 9 else {
+                return
+            }
+            memcpy(&messageTimestamp, base, 4)
+            memcpy(&captureTimestamp, base.advanced(by: 4), 4)
+            memcpy(&kind, base.advanced(by: 8), 1)
+        }
+        XCTAssertEqual(messageTimestamp, 300)
+        XCTAssertEqual(captureTimestamp, record.eventTime)
+        XCTAssertEqual(kind, MessageArchiveKind.deleted.rawValue)
+        XCTAssertEqual(record.cursor.captureIndex, 1)
+    }
+
+    func testExportEventIdIsStablePerCaptureAndUniqueBetweenCaptures() {
+        let messageId = self.id(4)
+        self.store(messageId, timestamp: 400, text: "before")
+        self.replaceContent(messageId, timestamp: 400, text: "after")
+        self.captureEditVersion(messageId)
+        self.remove([messageId])
+
+        let records = self.exportPage(after: nil, limit: 10)
+        XCTAssertEqual(records.count, 2)
+
+        let events = records.map(archivedMessageExportEvent)
+        let expected = [
+            "message_archive:\(self.peer.toInt64()):\(self.namespace):\(messageId.id):1",
+            "message_archive:\(self.peer.toInt64()):\(self.namespace):\(messageId.id):2"
+        ]
+        XCTAssertEqual(events.map { $0.eventId }, expected)
+        XCTAssertEqual(events.map { $0.stream }, ["message_archive", "message_archive"])
+        XCTAssertEqual(events.map { $0.eventTime }, records.map { $0.eventTime })
+        XCTAssertEqual(events.map { $0.payload }, records.map { $0.payload })
+
+        // Rebuilding from the same record yields the same identity: retries are idempotent.
+        XCTAssertEqual(archivedMessageExportEvent(record: records[0]).eventId, events[0].eventId)
+        XCTAssertNotEqual(events[0].eventId, events[1].eventId)
+    }
 }

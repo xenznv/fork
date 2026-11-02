@@ -171,6 +171,14 @@ public final class Transaction {
         return self.postbox?.archivedDeletedMessageVersions(peerId: peerId, limit: limit) ?? []
     }
     
+    /// One page of archive records for export to an external store, in the archive's key
+    /// order. `eventId` is stable per capture, so a receiver can ignore repeated delivery
+    /// of the same event; `nextCursor` is nil once the archive has no more records.
+    public func archivedMessageExportBatch(after cursor: ArchivedMessageExportCursor?, limit: Int = 100) -> ArchivedMessageExportBatch {
+        assert(!self.disposed)
+        return self.postbox?.archivedMessageExportBatch(after: cursor, limit: limit) ?? ArchivedMessageExportBatch(events: [], nextCursor: nil)
+    }
+    
     public func deleteMessagesInRange(peerId: PeerId, namespace: MessageId.Namespace, minId: MessageId.Id, maxId: MessageId.Id, forEachMedia: ((Media) -> Void)?) {
         assert(!self.disposed)
         self.postbox?.deleteMessagesInRange(peerId: peerId, namespace: namespace, minId: minId, maxId: maxId, forEachMedia: forEachMedia)
@@ -2346,6 +2354,11 @@ final class PostboxImpl {
         return self.messageArchiveTable.records(id: id).map { record in
             return ArchivedMessageVersion(message: self.renderIntermediateMessage(record.message), kind: record.kind, captureTimestamp: record.captureTimestamp, captureIndex: record.captureIndex)
         }
+    }
+    
+    fileprivate func archivedMessageExportBatch(after cursor: ArchivedMessageExportCursor?, limit: Int) -> ArchivedMessageExportBatch {
+        let records = self.messageArchiveTable.exportRecords(after: cursor, limit: limit)
+        return ArchivedMessageExportBatch(events: records.map(archivedMessageExportEvent), nextCursor: records.last?.cursor)
     }
     
     fileprivate func archivedMessageVersionCount(_ id: MessageId) -> Int {
