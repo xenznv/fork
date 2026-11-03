@@ -34,7 +34,7 @@ public final class ArchivedMessageExportHTTPChannel: ArchivedMessageExportChanne
         return request
     }
 
-    private func body(_ event: ArchivedMessageExportEvent) -> Data {
+    private func body(_ event: ArchivedMessageExportEvent) -> Data? {
         let object: [String: Any] = [
             "event_id": event.eventId,
             "stream": event.stream,
