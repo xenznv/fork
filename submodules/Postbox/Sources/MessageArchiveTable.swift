@@ -24,7 +24,7 @@ public struct ArchivedMessageVersion {
 
 /// A position in the archive's key order. Export walks records in the same order the
 /// table stores them, so a cursor fully identifies where the next page starts.
-public struct ArchivedMessageExportCursor: Equatable, Hashable {
+public struct ArchivedMessageExportCursor: Equatable, Hashable, Codable {
     public let peerId: PeerId
     public let namespace: MessageId.Namespace
     public let id: MessageId.Id
@@ -48,6 +48,17 @@ public struct ArchivedMessageExportEvent {
     /// Capture time in Unix seconds; a retry does not depend on the current device clock.
     public let eventTime: Int32
     public let payload: Data
+    /// The export-table position the event was read from; the export checkpoint stores
+    /// the cursor of the last event the backend confirmed.
+    public let cursor: ArchivedMessageExportCursor
+
+    public init(eventId: String, stream: String, eventTime: Int32, payload: Data, cursor: ArchivedMessageExportCursor) {
+        self.eventId = eventId
+        self.stream = stream
+        self.eventTime = eventTime
+        self.payload = payload
+        self.cursor = cursor
+    }
 }
 
 /// One page of export events plus the cursor to continue from; `nextCursor` is nil when
@@ -71,7 +82,8 @@ func archivedMessageExportEvent(record: ArchivedMessageExportRecord) -> Archived
         eventId: "message_archive:\(record.cursor.peerId.toInt64()):\(record.cursor.namespace):\(record.cursor.id):\(record.cursor.captureIndex)",
         stream: "message_archive",
         eventTime: record.eventTime,
-        payload: record.payload
+        payload: record.payload,
+        cursor: record.cursor
     )
 }
 

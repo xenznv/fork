@@ -447,3 +447,129 @@ final class MessageArchiveTableTests: XCTestCase {
         XCTAssertNotEqual(events[0].eventId, events[1].eventId)
     }
 }
+
+// MARK: - Export dispatcher
+
+/// A channel stub that accepts the first `acceptedLimit` events and declines the rest,
+/// recording what it actually accepted.
+private final class StubExportChannel: ArchivedMessageExportChannel {
+    private let lock = NSLock()
+    private(set) var events: [ArchivedMessageExportEvent] = []
+    var acceptedLimit: Int = Int.max
+
+    func send(_ event: ArchivedMessageExportEvent, _ completion: @escaping (ArchivedMessageExportChannelResult) -> Void) {
+        var accept = false
+        self.lock.lock()
+        accept = self.events.count < self.acceptedLimit
+        self.lock.unlock()
+        DispatchQueue.global().async {
+            var acceptedNow = false
+            if accept {
+                self.lock.lock()
+                if self.events.count < self.acceptedLimit {
+                    self.events.append(event)
+                    acceptedNow = true
+                }
+                self.lock.unlock()
+            }
+            completion(acceptedNow ? .accepted : .failure("stub declined"))
+        }
+    }
+}
+
+/// The export pump walks the archive event by event and must never advance its
+/// checkpoint past an event the backend has not confirmed.
+final class ArchivedMessageExportDispatcherTests: XCTestCase {
+    private var fixture: PostboxFixture!
+
+    private let peer = MessageHistoryTableFixture.peerId(711)
+    private let namespace = MessageHistoryTableFixture.messageNamespace
+
+    override func setUp() {
+        super.setUp()
+        self.fixture = PostboxFixture(name: "ArchivedMessageExportDispatcherTests")
+    }
+
+    override func tearDown() {
+        self.fixture.close()
+        self.fixture = nil
+        super.tearDown()
+    }
+
+    // MARK: - Helpers
+
+    private func id(_ value: Int32) -> MessageId {
+        return MessageId(peerId: self.peer, namespace: self.namespace, id: value)
+    }
+
+    /// Two messages of one chat, stored and then deleted, so the archive holds two
+    /// deletion captures.
+    private func storeAndDeleteTwoMessages() {
+        self.fixture.transaction { transaction in
+            transaction.updatePeersInternal([FixturePeer(id: self.peer, title: "chat")], update: { _, updated in updated })
+            transaction.addMessages([
+                MessageHistoryTableFixture.storeMessage(id: self.id(1), timestamp: 100, text: "one"),
+                MessageHistoryTableFixture.storeMessage(id: self.id(2), timestamp: 200, text: "two")
+            ], location: .Random)
+        }
+        self.fixture.transaction { transaction in
+            transaction.deleteMessages([self.id(1), self.id(2)], forEachMedia: nil)
+        }
+    }
+
+    private func savedCheckpoint(dispatcher: ArchivedMessageExportDispatcher) -> ArchivedMessageExportCursor? {
+        return self.fixture.transaction { transaction -> ArchivedMessageExportCursor? in
+            let entry = transaction.getPreferencesEntry(key: dispatcher.stateKey)
+            return entry?.get(ArchivedMessageExportSyncState.self)?.sentCursor
+        }
+    }
+
+    func testPumpUploadsWholeArchiveAndPersistsCheckpoint() {
+        self.storeAndDeleteTwoMessages()
+        let channel = StubExportChannel()
+        let dispatcher = ArchivedMessageExportDispatcher(postbox: self.fixture.postbox!, channel: channel)
+
+        XCTAssertEqual(dispatcher.pumpOnce(), .uploaded(2))
+        XCTAssertEqual(channel.events.count, 2)
+        XCTAssertEqual(channel.events.map { $0.cursor.id }, [1, 2])
+        XCTAssertEqual(self.savedCheckpoint(dispatcher: dispatcher), channel.events.last?.cursor)
+
+        // The uploaded events are recorded in the checkpoint, so the next pump is idle.
+        XCTAssertEqual(dispatcher.pumpOnce(), .caughtUp)
+        XCTAssertEqual(channel.events.count, 2)
+    }
+
+    func testPumpFailureKeepsCheckpointAndRetries() {
+        self.storeAndDeleteTwoMessages()
+        let channel = StubExportChannel()
+        channel.acceptedLimit = 1
+        let dispatcher = ArchivedMessageExportDispatcher(postbox: self.fixture.postbox!, channel: channel)
+
+        XCTAssertEqual(dispatcher.pumpOnce(), .failure("stub declined"))
+        XCTAssertEqual(channel.events.count, 1)
+        // The confirmed event is checkpointed; the declined one is not.
+        XCTAssertEqual(self.savedCheckpoint(dispatcher: dispatcher), channel.events.first?.cursor)
+
+        // The backend is healthy again: the declined event is retried, and this time
+        // it carries the same stable identity, so the backend can dedupe it.
+        channel.acceptedLimit = Int.max
+        XCTAssertEqual(dispatcher.pumpOnce(), .uploaded(1))
+        XCTAssertEqual(channel.events.count, 2)
+        // The retry is the declined capture again (the message with id 2), with the
+        // same stable identity that lets the backend ignore a repeated delivery.
+        XCTAssertEqual(channel.events[1].cursor.id, 2)
+        XCTAssertEqual(channel.events[1].eventId, "message_archive:\(self.peer.toInt64()):\(self.namespace):\(channel.events[1].cursor.id):\(channel.events[1].cursor.captureIndex)")
+        XCTAssertEqual(self.savedCheckpoint(dispatcher: dispatcher), channel.events.last?.cursor)
+    }
+
+    func testPumpOnEmptyArchiveReportsCaughtUp() {
+        let dispatcher = ArchivedMessageExportDispatcher(postbox: self.fixture.postbox!, channel: StubExportChannel())
+        XCTAssertEqual(dispatcher.pumpOnce(), .caughtUp)
+    }
+
+    func testPumpWithoutChannelReportsMissing() {
+        let dispatcher = ArchivedMessageExportDispatcher(postbox: self.fixture.postbox!)
+        XCTAssertEqual(dispatcher.pumpOnce(), .channelMissing)
+    }
+}
+
