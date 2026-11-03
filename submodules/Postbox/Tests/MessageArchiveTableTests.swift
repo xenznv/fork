@@ -507,7 +507,7 @@ final class ArchivedMessageExportDispatcherTests: XCTestCase {
     private func storeAndDeleteTwoMessages() {
         self.fixture.transaction { transaction in
             transaction.updatePeersInternal([FixturePeer(id: self.peer, title: "chat")], update: { _, updated in updated })
-            transaction.addMessages([
+            let _ = transaction.addMessages([
                 MessageHistoryTableFixture.storeMessage(id: self.id(1), timestamp: 100, text: "one"),
                 MessageHistoryTableFixture.storeMessage(id: self.id(2), timestamp: 200, text: "two")
             ], location: .Random)
@@ -518,7 +518,7 @@ final class ArchivedMessageExportDispatcherTests: XCTestCase {
     }
 
     private func savedCheckpoint(dispatcher: ArchivedMessageExportDispatcher) -> ArchivedMessageExportCursor? {
-        return self.fixture.transaction { transaction -> ArchivedMessageExportCursor? in
+        return self.fixture.transaction { transaction in
             let entry = transaction.getPreferencesEntry(key: dispatcher.stateKey)
             return entry?.get(ArchivedMessageExportSyncState.self)?.sentCursor
         }
