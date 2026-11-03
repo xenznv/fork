@@ -518,10 +518,12 @@ final class ArchivedMessageExportDispatcherTests: XCTestCase {
     }
 
     private func savedCheckpoint(dispatcher: ArchivedMessageExportDispatcher) -> ArchivedMessageExportCursor? {
-        return self.fixture.transaction { transaction in
+        var cursor: ArchivedMessageExportCursor?
+        self.fixture.transaction { transaction in
             let entry = transaction.getPreferencesEntry(key: dispatcher.stateKey)
-            return entry?.get(ArchivedMessageExportSyncState.self)?.sentCursor
+            cursor = entry?.get(ArchivedMessageExportSyncState.self)?.sentCursor
         }
+        return cursor
     }
 
     func testPumpUploadsWholeArchiveAndPersistsCheckpoint() {
