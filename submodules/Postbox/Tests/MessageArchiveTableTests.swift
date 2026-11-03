@@ -477,6 +477,68 @@ private final class StubExportChannel: ArchivedMessageExportChannel {
     }
 }
 
+
+// MARK: - Export HTTP channel
+
+/// The wire format must match the backend contract (PROJECT.md §10): one
+/// `POST /events` per event, bearer token, JSON with a base64 payload, any 2xx
+/// means stored, a backend error surfaces as a failure with its status and a
+/// body excerpt.
+final class ArchivedMessageExportHTTPChannelTests: XCTestCase {
+    private let url = URL(string: "https://backend.example.com/events")!
+
+    private func sampleEvent() -> ArchivedMessageExportEvent {
+        return ArchivedMessageExportEvent(
+            eventId: "message_archive:711:2:5:12",
+            stream: "message_archive",
+            eventTime: 1_735_689_600,
+            payload: Data([1, 2, 3, 255]),
+            cursor: ArchivedMessageExportCursor(peerId: MessageHistoryTableFixture.peerId(711), namespace: 2, id: 5, captureIndex: 12)
+        )
+    }
+
+    func testRequestMatchesBackendContract() throws {
+        let event = self.sampleEvent()
+        let channel = ArchivedMessageExportHTTPChannel(url: self.url, token: "secret-token", session: .shared)
+        let request = channel.makeRequest(event)
+
+        XCTAssertEqual(request.url, self.url)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
+
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap((try JSONSerialization.jsonObject(with: body, options: [])) as? [String: Any])
+        XCTAssertEqual(json["event_id"] as? String, event.eventId)
+        XCTAssertEqual(json["stream"] as? String, event.stream)
+        XCTAssertEqual(json["payload"] as? String, event.payload.base64EncodedString())
+        XCTAssertEqual((json["event_time"] as? NSNumber)?.int32Value, event.eventTime)
+    }
+
+    func testResultOutcomeMapping() {
+        func response(_ statusCode: Int) -> HTTPURLResponse {
+            return HTTPURLResponse(url: self.url, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
+        }
+
+        // A 2xx (including the backend's 201) means stored, dedup included.
+        XCTAssertEqual(ArchivedMessageExportHTTPChannel.result(data: "{\"sync_id\": 1}".data(using: .utf8), response: response(201), error: nil), .accepted)
+        XCTAssertEqual(ArchivedMessageExportHTTPChannel.result(data: nil, response: response(200), error: nil), .accepted)
+
+        // Backend rejections surface as failures with status and a body excerpt.
+        XCTAssertEqual(ArchivedMessageExportHTTPChannel.result(data: "{\"error\": \"unauthorized\"}".data(using: .utf8), response: response(401), error: nil), .failure("backend_401: {\"error\": \"unauthorized\"}"))
+        XCTAssertEqual(ArchivedMessageExportHTTPChannel.result(data: nil, response: response(429), error: nil), .failure("backend_429: "))
+
+        // Transport-level errors and non-HTTP responses are failures too.
+        let transportError = URLError(.networkConnectionLost)
+        if case .failure(let reason) = ArchivedMessageExportHTTPChannel.result(data: nil, response: nil, error: transportError) {
+            XCTAssertFalse(reason!.isEmpty)
+        } else {
+            XCTFail("expected failure")
+        }
+        XCTAssertEqual(ArchivedMessageExportHTTPChannel.result(data: nil, response: URLResponse(url: self.url, mimeType: nil, expectedContentLength: 0, textEncodingName: nil), error: nil), .failure("non_http_response"))
+    }
+}
+
 /// The export pump walks the archive event by event and must never advance its
 /// checkpoint past an event the backend has not confirmed.
 final class ArchivedMessageExportDispatcherTests: XCTestCase {
