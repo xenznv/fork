@@ -2,7 +2,6 @@ import Foundation
 import UIKit
 import Display
 import SwiftSignalKit
-import Postbox
 import TelegramCore
 import TelegramPresentationData
 import ItemListUI
@@ -162,28 +161,26 @@ public func messageArchiveExportSettingsController(context: AccountContext) -> V
         currentState = MessageArchiveExportSettingsControllerState(endpoint: currentState.endpoint, token: value, saved: false)
         stateValue.set(currentState)
     }, save: {
-        let settings: ArchivedMessageExportSettings?
+        let configuration: MessageArchiveExportConfiguration?
         if currentState.endpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && currentState.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            settings = nil
+            configuration = nil
         } else {
-            let candidate = ArchivedMessageExportSettings(endpoint: currentState.endpoint, token: currentState.token)
-            guard candidate.channel != nil else {
+            let candidate = MessageArchiveExportConfiguration(endpoint: currentState.endpoint, token: currentState.token)
+            guard candidate.isUsable else {
                 let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                 presentControllerImpl?(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: "Message Archive Export", text: "Fill in an absolute http(s) endpoint and a non-empty token, or leave both fields empty to disable the upload.", actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]))
                 return
             }
-            settings = candidate
+            configuration = candidate
         }
-        let _ = (context.account.postbox.transaction { transaction -> Void in
-            updateArchivedMessageExportSettings(transaction: transaction, settings: settings)
-        }).start()
+        let _ = updateMessageArchiveExportConfiguration(account: context.account, configuration: configuration).start()
         currentState = MessageArchiveExportSettingsControllerState(endpoint: currentState.endpoint, token: currentState.token, saved: true)
         stateValue.set(currentState)
     })
 
     // The stored configuration fills the fields once; an edit made before the read
     // completes keeps the typed value.
-    arguments.disposable.set((archivedMessageExportSettings(postbox: context.account.postbox)
+    arguments.disposable.set((messageArchiveExportConfiguration(account: context.account)
     |> take(1)
     |> deliverOnMainQueue).start(next: { stored in
         guard let stored = stored else {
