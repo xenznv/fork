@@ -697,6 +697,7 @@ private enum DebugControllerEntry: ItemListNodeEntry {
     case experimentsHeader(PresentationTheme)
     case sendLogs(PresentationTheme)
     case accounts(PresentationTheme)
+    case messageArchiveExport(PresentationTheme)
     case logToFile(PresentationTheme, Bool)
     case logToConsole(PresentationTheme, Bool)
     case redactSensitiveData(PresentationTheme, Bool)
@@ -774,7 +775,7 @@ private enum DebugControllerEntry: ItemListNodeEntry {
             return DebugControllerSection.sticker.rawValue
         case .logsHeader, .logsInfo, .sendLogs:
             return DebugControllerSection.logs.rawValue
-        case .accounts:
+        case .accounts, .messageArchiveExport:
             return DebugControllerSection.accounts.rawValue
         case .crashReports:
             return DebugControllerSection.logs.rawValue
@@ -819,6 +820,8 @@ private enum DebugControllerEntry: ItemListNodeEntry {
             return 1
         case .accounts:
             return -3
+        case .messageArchiveExport:
+            return -2
         case .logToFile:
             return 10
         case .logToConsole:
@@ -1030,6 +1033,13 @@ private enum DebugControllerEntry: ItemListNodeEntry {
                     return
                 }
                 arguments.pushController(debugAccountsController(context: context, accountManager: arguments.sharedContext.accountManager))
+            })
+        case .messageArchiveExport:
+            return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "Message Archive Export", label: "", sectionId: self.section, style: .blocks, action: {
+                guard let context = arguments.context else {
+                    return
+                }
+                arguments.pushController(messageArchiveExportSettingsController(context: context))
             })
         case let .logToFile(_, value):
             return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: "Log to File", value: value, sectionId: self.section, style: .blocks, updated: { value in
@@ -1883,6 +1893,7 @@ private func debugControllerEntries(context: AccountContext?, sharedContext: Sha
 
     if isMainApp {
         entries.append(.accounts(presentationData.theme))
+        entries.append(.messageArchiveExport(presentationData.theme))
     }
 
     entries.append(.resetAppHeader(presentationData.theme))
