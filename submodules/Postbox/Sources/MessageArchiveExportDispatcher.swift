@@ -63,6 +63,18 @@ public final class ArchivedMessageExportDispatcher {
         self.syncTimeout = syncTimeout
     }
 
+    /// Re-reads the backend configuration from the account preferences and applies
+    /// it as the channel. Returns `false` when the configuration is missing or
+    /// incomplete, in which case a pump reports `channelMissing`.
+    @discardableResult
+    public func applyStoredSettings() -> Bool {
+        let stored: ArchivedMessageExportSettings?? = self.transaction { transaction -> ArchivedMessageExportSettings? in
+            return transaction.getPreferencesEntry(key: ArchivedMessageExportSettings.defaultKey)?.get(ArchivedMessageExportSettings.self)
+        }
+        self.channel = (stored ?? nil)?.channel
+        return self.channel != nil
+    }
+
     /// Reads whether the event stream is empty without updating anything.
     @discardableResult
     public func pumpOnce(maxBatchSize: Int = 100) -> ArchivedMessageExportPumpOutcome {
