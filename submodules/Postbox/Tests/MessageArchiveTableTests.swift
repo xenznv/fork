@@ -638,82 +638,27 @@ final class ArchivedMessageExportDispatcherTests: XCTestCase {
 }
 
 
-// MARK: - Export settings
+// MARK: - Export configuration
 
-/// Backend configuration is an account preference, and it is deliberately kept
-/// apart from the pump checkpoint: editing the endpoint or token must not rewind
-/// (or lose) the export position.
+/// The backend is compiled into the fork, so these tests pin the validation the
+/// pump relies on: an unusable configuration must not produce a channel, and the
+/// compiled-in one must be usable.
 final class ArchivedMessageExportSettingsTests: XCTestCase {
-    private var fixture: PostboxFixture!
-
-    override func setUp() {
-        super.setUp()
-        self.fixture = PostboxFixture(name: "ArchivedMessageExportSettingsTests")
+    func testCompiledConfigurationProducesAChannel() {
+        let channel = ArchivedMessageExportSettings.channel
+        XCTAssertTrue(channel is ArchivedMessageExportHTTPChannel)
     }
 
-    override func tearDown() {
-        self.fixture.close()
-        self.fixture = nil
-        super.tearDown()
+    func testIncompleteConfigurationProducesNoChannel() {
+        XCTAssertNil(ArchivedMessageExportSettings.makeChannel(endpoint: "https://export.example.com/events", token: "   "))
+        XCTAssertNil(ArchivedMessageExportSettings.makeChannel(endpoint: "", token: "secret"))
+        XCTAssertNil(ArchivedMessageExportSettings.makeChannel(endpoint: "not a url", token: "secret"))
+        XCTAssertNil(ArchivedMessageExportSettings.makeChannel(endpoint: "ftp://export.example.com/events", token: "secret"))
+        XCTAssertNil(ArchivedMessageExportSettings.makeChannel(endpoint: "https://", token: "secret"))
     }
 
-    private func store(_ settings: ArchivedMessageExportSettings?) {
-        let _ = self.fixture.transaction { transaction in
-            updateArchivedMessageExportSettings(transaction: transaction, settings: settings)
-        }
-    }
-
-    private func storedSettings() -> ArchivedMessageExportSettings? {
-        var settings: ArchivedMessageExportSettings?
-        let _ = self.fixture.transaction { transaction in
-            settings = transaction.getPreferencesEntry(key: ArchivedMessageExportSettings.defaultKey)?.get(ArchivedMessageExportSettings.self)
-        }
-        return settings
-    }
-
-    func testSettingsRoundTrip() {
-        XCTAssertNil(self.storedSettings())
-
-        let settings = ArchivedMessageExportSettings(endpoint: "https://export.example.com/events", token: "secret")
-        self.store(settings)
-        XCTAssertEqual(self.storedSettings(), settings)
-
-        self.store(nil)
-        XCTAssertNil(self.storedSettings())
-    }
-
-    func testSettingsAreStoredSeparatelyFromTheCheckpoint() {
-        self.store(ArchivedMessageExportSettings(endpoint: "https://export.example.com/events", token: "secret"))
-
-        var stateEntry: PreferencesEntry?
-        let _ = self.fixture.transaction { transaction in
-            stateEntry = transaction.getPreferencesEntry(key: ArchivedMessageExportDispatcher.defaultStateKey)
-        }
-        XCTAssertNil(stateEntry)
-    }
-
-    func testChannelRequiresACompleteConfiguration() {
-        XCTAssertNil(ArchivedMessageExportSettings(endpoint: "", token: "secret").channel)
-        XCTAssertNil(ArchivedMessageExportSettings(endpoint: "https://export.example.com/events", token: "   ").channel)
-        XCTAssertNil(ArchivedMessageExportSettings(endpoint: "not a url", token: "secret").channel)
-        XCTAssertNil(ArchivedMessageExportSettings(endpoint: "ftp://export.example.com/events", token: "secret").channel)
-        XCTAssertNil(ArchivedMessageExportSettings(endpoint: "https://", token: "secret").channel)
-
-        // Surrounding whitespace is trimmed, so a value pasted into a text field works.
-        XCTAssertNotNil(ArchivedMessageExportSettings(endpoint: " https://export.example.com/events ", token: " secret ").channel)
-    }
-
-    func testDispatcherAppliesStoredSettings() {
-        let dispatcher = ArchivedMessageExportDispatcher(postbox: self.fixture.postbox!)
-        XCTAssertEqual(dispatcher.pumpOnce(), .channelMissing)
-
-        self.store(ArchivedMessageExportSettings(endpoint: "https://export.example.com/events", token: "secret"))
-        XCTAssertTrue(dispatcher.applyStoredSettings())
-        XCTAssertTrue(dispatcher.channel is ArchivedMessageExportHTTPChannel)
-
-        // A cleared token disables the export instead of sending unauthenticated events.
-        self.store(ArchivedMessageExportSettings(endpoint: "https://export.example.com/events", token: ""))
-        XCTAssertFalse(dispatcher.applyStoredSettings())
-        XCTAssertEqual(dispatcher.pumpOnce(), .channelMissing)
+    /// Values pasted with surrounding whitespace still work.
+    func testWhitespaceAroundTheConfigurationIsIgnored() {
+        XCTAssertNotNil(ArchivedMessageExportSettings.makeChannel(endpoint: " https://export.example.com/events ", token: " secret "))
     }
 }
