@@ -7,6 +7,11 @@ on:
     paths-ignore:
       - PROJECT.md
   workflow_dispatch:
+    inputs:
+      ipa:
+        description: 'Build the installable IPA as well'
+        type: boolean
+        default: true
 
 concurrency:
   group: check-${{ github.ref }}
@@ -169,3 +174,102 @@ jobs:
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=debug_sim_arm64
+  ipa:
+    # Installable device build. The repository cannot ship a signing identity, so the IPA is
+    # signed with the self-signed certificate and the AppStore-shaped profiles from
+    # build-system/fake-codesigning; SideStore and Sideloadly replace that signature when they
+    # install. The bot token is compiled in, so it comes from the BOT_QUEUE_TOKEN secret and
+    # never from a commit: the tracked file keeps its empty placeholder.
+    if: github.event_name == 'workflow_dispatch' && inputs.ipa
+    runs-on: xcode-27
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: '1'
+
+      - name: Select Xcode
+        id: xcode
+        run: |
+          REQUIRED=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
+          if [ -d "/Applications/Xcode_${REQUIRED}.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_${REQUIRED}.app/Contents/Developer"
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+            echo "flag=--overrideXcodeVersion" >> "$GITHUB_OUTPUT"
+            echo "::warning::Xcode ${REQUIRED} is not installed on this runner; building with $(xcodebuild -version | head -1)"
+          fi
+          xcodebuild -version
+
+      - name: Restore bazel cache
+        uses: actions/cache@v4
+        with:
+          path: /Users/Shared/bazel-disk-cache-ipa
+          key: ipa-disk-cache-${{ runner.os }}-v1-${{ github.run_id }}
+          restore-keys: |
+            ipa-disk-cache-${{ runner.os }}-v1-
+            app-disk-cache-${{ runner.os }}-v1-
+            core-disk-cache-${{ runner.os }}-v1-
+            postbox-disk-cache-${{ runner.os }}-v1-
+
+      - name: Import the signing identity
+        run: |
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+
+      - name: Compile the bot token into the build
+        env:
+          BOT_QUEUE_TOKEN: ${{ secrets.BOT_QUEUE_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import sys
+          token = os.environ.get('BOT_QUEUE_TOKEN', '')
+          if not token:
+              print('::error::The BOT_QUEUE_TOKEN repository secret is empty: set it under Settings -> Secrets and variables -> Actions.')
+              sys.exit(1)
+          path = pathlib.Path('submodules/Postbox/Sources/BotQueueSettings.swift')
+          text = path.read_text()
+          placeholder = 'public static let token = ""'
+          if placeholder not in text:
+              print('::error::BotQueueSettings.swift no longer has an empty token placeholder; update this workflow step.')
+              sys.exit(1)
+          path.write_text(text.replace(placeholder, 'public static let token = "%s"' % token, 1))
+          print('Bot queue token compiled in, {} characters'.format(len(token)))
+          PY
+
+      - name: Build the IPA
+        run: |
+          mkdir -p artifacts
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot="$RUNNER_TEMP/bazel-user-root" \
+            --cacheDir=/Users/Shared/bazel-disk-cache-ipa \
+            ${{ steps.xcode.outputs.flag }} \
+            build \
+            --buildNumber=1 \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_arm64 \
+            --outputBuildArtifactsPath=artifacts
+
+      - name: Verify the token reached the build
+        run: |
+          if git diff --quiet -- submodules/Postbox/Sources/BotQueueSettings.swift; then
+            echo "::error::The token was not written into BotQueueSettings.swift, so the app would find an empty queue reader."
+            exit 1
+          fi
+          ls -lh artifacts
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-ipa
+          path: artifacts/Telegram.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove the token from the workspace
+        if: always()
+        run: git checkout -- submodules/Postbox/Sources/BotQueueSettings.swift || true
