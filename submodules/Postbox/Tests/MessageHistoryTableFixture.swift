@@ -57,6 +57,7 @@ final class MessageHistoryTableFixture {
         let invalidatedMessageHistoryTagsSummaryTable: InvalidatedMessageHistoryTagsSummaryTable
         let globalMessageHistoryTagsTable: GlobalMessageHistoryTagsTable
         let messageArchiveTable: MessageArchiveTable
+        let botQueueTable: BotQueueTable
         let messageHistoryTable: MessageHistoryTable
         /// Every table above, so a commit can flush them all as `Postbox` does.
         let allTables: [Table]
@@ -101,9 +102,11 @@ final class MessageHistoryTableFixture {
             let textIndexTable = MessageHistoryTextIndexTable(valueBox: valueBox, table: MessageHistoryTextIndexTable.tableSpec(41))
             let messageArchiveTable = MessageArchiveTable(valueBox: valueBox, table: MessageArchiveTable.tableSpec(86), useCaches: useCaches)
             self.messageArchiveTable = messageArchiveTable
+            let botQueueTable = BotQueueTable(valueBox: valueBox, table: BotQueueTable.tableSpec(87), useCaches: useCaches)
+            self.botQueueTable = botQueueTable
 
             self.messageHistoryTable = MessageHistoryTable(valueBox: valueBox, table: MessageHistoryTable.tableSpec(7), useCaches: useCaches, seedConfiguration: seedConfiguration, messageHistoryIndexTable: messageHistoryIndexTable, messageHistoryHoleIndexTable: messageHistoryHoleIndexTable, messageMediaTable: mediaTable, historyMetadataTable: messageHistoryMetadataTable, globallyUniqueMessageIdsTable: globallyUniqueMessageIdsTable, unsentTable: unsentTable, failedTable: failedTable, tagsTable: tagsTable, threadsTable: threadsTable, threadTagsTable: threadTagsTable, customTagTable: messageCustomTagTable, customTagWithTagTable: messageCustomTagWithTagTable, globalTagsTable: globalMessageHistoryTagsTable, localTagsTable: localMessageHistoryTagsTable, timeBasedAttributesTable: timestampBasedMessageAttributesTable, readStateTable: readStateTable, synchronizeReadStateTable: synchronizeReadStateTable, textIndexTable: textIndexTable, summaryTable: messageHistoryTagsSummaryTable, pendingActionsTable: pendingMessageActionsTable, archiveTable: messageArchiveTable)
-            self.allTables = [messageHistoryMetadataTable, messageHistoryHoleIndexTable, globalMessageIdsTable, globallyUniqueMessageIdsTable, messageCustomTagIdTable, messageCustomTagTable, unsentTable, failedTable, invalidatedMessageHistoryTagsSummaryTable, messageHistoryTagsSummaryTable, messageCustomTagWithTagTable, pendingMessageActionsMetadataTable, pendingMessageActionsTable, tagsTable, threadsTable, threadTagsTable, globalMessageHistoryTagsTable, localMessageHistoryTagsTable, messageHistoryIndexTable, mediaTable, readStateTable, synchronizeReadStateTable, timestampBasedMessageAttributesIndexTable, timestampBasedMessageAttributesTable, messageArchiveTable, self.messageHistoryTable]
+            self.allTables = [messageHistoryMetadataTable, messageHistoryHoleIndexTable, globalMessageIdsTable, globallyUniqueMessageIdsTable, messageCustomTagIdTable, messageCustomTagTable, unsentTable, failedTable, invalidatedMessageHistoryTagsSummaryTable, messageHistoryTagsSummaryTable, messageCustomTagWithTagTable, pendingMessageActionsMetadataTable, pendingMessageActionsTable, tagsTable, threadsTable, threadTagsTable, globalMessageHistoryTagsTable, localMessageHistoryTagsTable, messageHistoryIndexTable, mediaTable, readStateTable, synchronizeReadStateTable, timestampBasedMessageAttributesIndexTable, timestampBasedMessageAttributesTable, messageArchiveTable, botQueueTable, self.messageHistoryTable]
         }
     }
 
@@ -114,6 +117,7 @@ final class MessageHistoryTableFixture {
 
     var valueBox: SqliteValueBox { return self.tables!.valueBox }
     var messageArchiveTable: MessageArchiveTable { return self.tables!.messageArchiveTable }
+    var botQueueTable: BotQueueTable { return self.tables!.botQueueTable }
     var messageHistoryTable: MessageHistoryTable { return self.tables!.messageHistoryTable }
     var mediaTable: MessageMediaTable { return self.tables!.mediaTable }
     var readStateTable: MessageHistoryReadStateTable { return self.tables!.readStateTable }

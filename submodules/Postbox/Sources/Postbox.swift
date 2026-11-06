@@ -171,12 +171,35 @@ public final class Transaction {
         return self.postbox?.archivedDeletedMessageVersions(peerId: peerId, limit: limit) ?? []
     }
     
-    /// One page of archive records for export to an external store, in the archive's key
-    /// order. `eventId` is stable per capture, so a receiver can ignore repeated delivery
-    /// of the same event; `nextCursor` is nil once the archive has no more records.
-    public func archivedMessageExportBatch(after cursor: ArchivedMessageExportCursor?, limit: Int = 100) -> ArchivedMessageExportBatch {
+    /// Stores records pulled from the bot's update queue. Repeated delivery of the same
+    /// (chat, message, kind) overwrites the previous copy, so a replayed page is harmless.
+    public func storeBotQueueRecords(_ records: [BotQueueRecord]) {
         assert(!self.disposed)
-        return self.postbox?.archivedMessageExportBatch(after: cursor, limit: limit) ?? ArchivedMessageExportBatch(events: [], nextCursor: nil)
+        self.postbox?.storeBotQueueRecords(records)
+    }
+
+    /// How many records of one kind are stored, across every chat.
+    public func botQueueRecordCount(kind: BotQueueRecordKind) -> Int {
+        assert(!self.disposed)
+        return self.postbox?.botQueueRecordCount(kind: kind) ?? 0
+    }
+
+    /// One record, if the queue ever delivered it.
+    public func botQueueRecord(chatId: Int64, messageId: Int32, kind: BotQueueRecordKind) -> BotQueueRecord? {
+        assert(!self.disposed)
+        return self.postbox?.botQueueRecord(chatId: chatId, messageId: messageId, kind: kind)
+    }
+
+    /// Every record of a chat in key order (message id, then kind).
+    public func botQueueRecords(chatId: Int64, limit: Int = 256) -> [BotQueueRecord] {
+        assert(!self.disposed)
+        return self.postbox?.botQueueRecords(chatId: chatId, limit: limit) ?? []
+    }
+
+    /// Chat ids the queue delivered events for, in key order.
+    public func botQueueChatIds(limit: Int = 64) -> [Int64] {
+        assert(!self.disposed)
+        return self.postbox?.botQueueChatIds(limit: limit) ?? []
     }
     
     public func deleteMessagesInRange(peerId: PeerId, namespace: MessageId.Namespace, minId: MessageId.Id, maxId: MessageId.Id, forEachMedia: ((Media) -> Void)?) {
@@ -1848,6 +1871,7 @@ final class PostboxImpl {
     let messageHistoryIndexTable: MessageHistoryIndexTable
     let messageHistoryTable: MessageHistoryTable
     let messageArchiveTable: MessageArchiveTable
+    let botQueueTable: BotQueueTable
     let mediaTable: MessageMediaTable
     let chatListIndexTable: ChatListIndexTable
     let chatListTable: ChatListTable
@@ -1975,6 +1999,7 @@ final class PostboxImpl {
         self.textIndexTable = MessageHistoryTextIndexTable(valueBox: self.valueBox, table: MessageHistoryTextIndexTable.tableSpec(41))
         self.additionalChatListItemsTable = AdditionalChatListItemsTable(valueBox: self.valueBox, table: AdditionalChatListItemsTable.tableSpec(55), useCaches: useCaches)
         self.messageArchiveTable = MessageArchiveTable(valueBox: self.valueBox, table: MessageArchiveTable.tableSpec(86), useCaches: useCaches)
+        self.botQueueTable = BotQueueTable(valueBox: self.valueBox, table: BotQueueTable.tableSpec(87), useCaches: useCaches)
         self.messageHistoryTable = MessageHistoryTable(valueBox: self.valueBox, table: MessageHistoryTable.tableSpec(7), useCaches: useCaches, seedConfiguration: seedConfiguration, messageHistoryIndexTable: self.messageHistoryIndexTable, messageHistoryHoleIndexTable: self.messageHistoryHoleIndexTable, messageMediaTable: self.mediaTable, historyMetadataTable: self.messageHistoryMetadataTable, globallyUniqueMessageIdsTable: self.globallyUniqueMessageIdsTable, unsentTable: self.messageHistoryUnsentTable, failedTable: self.messageHistoryFailedTable, tagsTable: self.messageHistoryTagsTable, threadsTable: self.messageHistoryThreadsTable, threadTagsTable: self.messageHistoryThreadTagsTable, customTagTable: self.messageCustomTagTable, customTagWithTagTable: self.messageCustomTagWithTagTable, globalTagsTable: self.globalMessageHistoryTagsTable, localTagsTable: self.localMessageHistoryTagsTable, timeBasedAttributesTable: self.timestampBasedMessageAttributesTable, readStateTable: self.readStateTable, synchronizeReadStateTable: self.synchronizeReadStateTable, textIndexTable: self.textIndexTable, summaryTable: self.messageHistoryTagsSummaryTable, pendingActionsTable: self.pendingMessageActionsTable, archiveTable: self.messageArchiveTable)
         self.peerChatStateTable = PeerChatStateTable(valueBox: self.valueBox, table: PeerChatStateTable.tableSpec(13), useCaches: useCaches)
         self.peerNameTokenIndexTable = ReverseIndexReferenceTable<PeerIdReverseIndexReference>(valueBox: self.valueBox, table: ReverseIndexReferenceTable<PeerIdReverseIndexReference>.tableSpec(26), useCaches: useCaches)
@@ -2094,6 +2119,7 @@ final class PostboxImpl {
         tables.append(self.storyTopItemsTable)
         tables.append(self.storyTable)
         tables.append(self.messageArchiveTable)
+        tables.append(self.botQueueTable)
         
         self.tables = tables
         
@@ -2356,9 +2382,26 @@ final class PostboxImpl {
         }
     }
     
-    fileprivate func archivedMessageExportBatch(after cursor: ArchivedMessageExportCursor?, limit: Int) -> ArchivedMessageExportBatch {
-        let records = self.messageArchiveTable.exportRecords(after: cursor, limit: limit)
-        return ArchivedMessageExportBatch(events: records.map(archivedMessageExportEvent), nextCursor: records.last?.cursor)
+    fileprivate func storeBotQueueRecords(_ records: [BotQueueRecord]) {
+        for record in records {
+            self.botQueueTable.set(record)
+        }
+    }
+    
+    fileprivate func botQueueRecordCount(kind: BotQueueRecordKind) -> Int {
+        return self.botQueueTable.count(kind: kind)
+    }
+    
+    fileprivate func botQueueRecord(chatId: Int64, messageId: Int32, kind: BotQueueRecordKind) -> BotQueueRecord? {
+        return self.botQueueTable.record(chatId: chatId, messageId: messageId, kind: kind)
+    }
+    
+    fileprivate func botQueueRecords(chatId: Int64, limit: Int) -> [BotQueueRecord] {
+        return self.botQueueTable.records(chatId: chatId, limit: limit)
+    }
+    
+    fileprivate func botQueueChatIds(limit: Int) -> [Int64] {
+        return self.botQueueTable.chatIds(limit: limit)
     }
     
     fileprivate func archivedMessageVersionCount(_ id: MessageId) -> Int {

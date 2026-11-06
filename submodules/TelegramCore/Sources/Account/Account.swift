@@ -1512,7 +1512,7 @@ public class Account {
         self.managedOperationsDisposable.add(managedSynchronizePeerStoriesOperations(postbox: self.postbox, network: self.network, stateManager: self.stateManager).start())
         self.managedOperationsDisposable.add(managedLocalTypingActivities(activities: self.localInputActivityManager.allActivities(), postbox: self.stateManager.postbox, network: self.stateManager.network, accountPeerId: self.stateManager.accountPeerId).start())
         if !supplementary {
-            self.managedOperationsDisposable.add(managedMessageArchiveExport(postbox: self.postbox).start())
+            self.managedOperationsDisposable.add(managedBotQueueIngest(postbox: self.postbox).start())
         }
         
         let extractedExpr1: [Signal<AccountRunningImportantTasks, NoError>] = [
