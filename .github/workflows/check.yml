@@ -214,6 +214,16 @@ jobs:
             core-disk-cache-${{ runner.os }}-v1-
             postbox-disk-cache-${{ runner.os }}-v1-
 
+      - name: Refresh the verification profiles
+        run: |
+          mkdir -p codesigning/profiles
+          cp -R build-system/fake-codesigning/certs codesigning/certs
+          python3 build-system/Make/RefreshVerificationProfiles.py \
+            --source=build-system/fake-codesigning/profiles \
+            --destination=codesigning/profiles \
+            --certsPath=build-system/fake-codesigning/certs \
+            --validityDays=365
+
       - name: Import the signing identity
         run: |
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
@@ -250,7 +260,7 @@ jobs:
             build \
             --buildNumber=1 \
             --configurationPath=build-system/appstore-configuration.json \
-            --codesigningInformationPath=build-system/fake-codesigning \
+            --codesigningInformationPath=codesigning \
             --configuration=release_arm64 \
             --outputBuildArtifactsPath=artifacts
 
