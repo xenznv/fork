@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    # The sources build against the iOS 27 SDK (UIView.reservedRegions and the iPhone Duo layout), so the
+    # runner image must carry Xcode 27; macos-latest ships Xcode 26 and fails in submodules/Display.
+    runs-on: xcode-27
     timeout-minutes: 350
 
     steps:
