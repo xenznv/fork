@@ -86,3 +86,6 @@ submodules/TelegramApi/ObjC/SwiftPMGenerated/
 submodules/TelegramApi/Tests/SwiftPMGenerated/
 /Telegram.app/
 build/accessibility/
+
+# Local project document: kept on this machine only
+/PROJECT.md

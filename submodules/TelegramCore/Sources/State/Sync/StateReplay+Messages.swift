@@ -273,22 +273,56 @@ extension ReplayContext {
         deleteEphemeralMessages(transaction: transaction, peerId: peerId, ids: ids)
     }
     
-    func applyDeleteMessagesWithGlobalIds(_ ids: [Int32]) {
-        var resourceIds: [MediaResourceId] = []
-        transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
-            addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
+    /// Keeps a message the server deleted: it stays where it is, with its content, marked by
+    /// `RemoteDeletionMessageAttribute` so the chat can show it as deleted. Returns false when there is
+    /// no such stored message, which then stays a deletion.
+    private func keepMessageAsRemotelyDeleted(_ id: MessageId) -> Bool {
+        var kept = false
+        transaction.updateMessage(id, update: { currentMessage in
+            kept = true
+            if currentMessage.attributes.contains(where: { $0 is RemoteDeletionMessageAttribute }) {
+                return .skip
+            }
+            var attributes = currentMessage.attributes.filter { !($0 is RemoteDeletionMessageAttribute) }
+            attributes.append(RemoteDeletionMessageAttribute(deletionTimestamp: Int32(Date().timeIntervalSince1970)))
+            return .update(StoreMessage(updating: currentMessage, attributes: attributes, tags: currentMessage.tags))
         })
+        return kept
+    }
+
+    func applyDeleteMessagesWithGlobalIds(_ ids: [Int32]) {
+        var keptGlobalIds = Set<Int64>()
+        for id in transaction.messageIdsForGlobalIds(ids) {
+            if self.keepMessageAsRemotelyDeleted(id), let globallyUniqueId = transaction.getMessage(id)?.globallyUniqueId {
+                keptGlobalIds.insert(globallyUniqueId)
+            }
+        }
+        let removedIds = ids.filter { !keptGlobalIds.contains(Int64($0)) }
+        var resourceIds: [MediaResourceId] = []
+        if !removedIds.isEmpty {
+            transaction.deleteMessagesWithGlobalIds(removedIds, forEachMedia: { media in
+                addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
+            })
+        }
         if !resourceIds.isEmpty {
             let _ = mediaBox.removeCachedResources(Array(Set(resourceIds)), force: true).start()
         }
-        deletedMessageIds.append(contentsOf: ids.map { .global($0) })
+        deletedMessageIds.append(contentsOf: removedIds.map { .global($0) })
     }
     
     func applyDeleteMessages(_ ids: [MessageId]) {
-        _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
-            self.addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
-        })
-        deletedMessageIds.append(contentsOf: ids.map { .messageId($0) })
+        var removedIds: [MessageId] = []
+        for id in ids {
+            if !self.keepMessageAsRemotelyDeleted(id) {
+                removedIds.append(id)
+            }
+        }
+        if !removedIds.isEmpty {
+            _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: removedIds, manualAddMessageThreadStatsDifference: { id, add, remove in
+                self.addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
+            })
+            deletedMessageIds.append(contentsOf: removedIds.map { .messageId($0) })
+        }
     }
     
     func applyUpdateMinAvailableMessage(_ id: MessageId) {

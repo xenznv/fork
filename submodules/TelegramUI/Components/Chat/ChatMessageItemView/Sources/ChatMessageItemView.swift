@@ -705,6 +705,17 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     
     open func setupItem(_ item: ChatMessageItem, synchronousLoad: Bool) {
         self.item = item
+        self.updateRemoteDeletionAppearance(item)
+    }
+
+    /// A message the server deleted but this account keeps (`RemoteDeletionMessageAttribute`): it stays on
+    /// screen exactly as it was - its date, its media and its context menu - only a little faded.
+    private func updateRemoteDeletionAppearance(_ item: ChatMessageItem) {
+        let isRemotelyDeleted = item.message.attributes.contains(where: { $0 is RemoteDeletionMessageAttribute })
+        let alpha: CGFloat = isRemotelyDeleted ? 0.55 : 1.0
+        if abs(self.alpha - alpha) > 0.001 {
+            self.alpha = alpha
+        }
     }
     
     open func updateAccessibilityData(_ accessibilityData: ChatMessageAccessibilityData) {
@@ -719,6 +730,7 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
             self.contentSize = layout.contentSize
             self.insets = layout.insets
             apply(.None, ListViewItemApply(), false)
+            self.updateRemoteDeletionAppearance(item)
         }
     }
     

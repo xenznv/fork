@@ -2,24 +2,57 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-latest
+    timeout-minutes: 350
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: '0'
 
-      - name: Set active Xcode path
+      # The build expects the Xcode named in versions.json. When the runner image does not
+      # carry it, the newest installed Xcode is used and the version check is bypassed below.
+      - name: Select Xcode
+        id: xcode
         run: |
-          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
-          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          set -euo pipefail
+          WANTED="$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')"
+          if [ -d "/Applications/Xcode_$WANTED.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_$WANTED.app/Contents/Developer"
+            echo "overrideXcodeVersion=" >> "$GITHUB_OUTPUT"
+          else
+            NEWEST="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+            echo "Xcode $WANTED is not installed, using $NEWEST"
+            sudo xcode-select -s "$NEWEST/Contents/Developer"
+            echo "overrideXcodeVersion=--overrideXcodeVersion" >> "$GITHUB_OUTPUT"
+          fi
+          xcodebuild -version
+
+      # api_id/api_hash come from build-system/appstore-configuration.json (the credentials
+      # Telegram publishes with the sources) unless TELEGRAM_API_ID/TELEGRAM_API_HASH secrets
+      # are set for this repository.
+      - name: Prepare API credentials
+        env:
+          API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          set -euo pipefail
+          if [ -n "${API_ID:-}" ] && [ -n "${API_HASH:-}" ]; then
+            python3 -c "import json,os; p='build-system/appstore-configuration.json'; d=json.load(open(p)); d['api_id']=os.environ['API_ID']; d['api_hash']=os.environ['API_HASH']; open(p,'w').write(json.dumps(d, indent='\t'))"
+            echo "Using api credentials from repository secrets"
+          else
+            echo "Using the api credentials bundled with build-system/appstore-configuration.json"
+          fi
 
       - name: Create canonical source directory
         run: |
@@ -52,6 +85,7 @@ jobs:
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$BAZEL_USER_ROOT" \
+            ${{ steps.xcode.outputs.overrideXcodeVersion }} \
             build \
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
@@ -73,37 +107,18 @@ jobs:
           done
           zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: build-${{ env.BUILD_NUMBER }}
-          release_name: Telegram ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
-          body: |
-            An unsigned build of Telegram for iOS ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
-          draft: false
-          prerelease: false
+          name: Telegram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Upload Release IPA
-        id: upload-release-ipa 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload dSYMs
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
-          asset_name: Telegram.ipa
-          asset_content_type: application/zip
-
-      - name: Upload Release DSYM
-        id: upload-release-dsym 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
-          asset_name: Telegram.DSYMs.zip
-          asset_content_type: application/zip
+          name: Telegram-DSYMs-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
+          if-no-files-found: warn
+          retention-days: 14

@@ -214,6 +214,11 @@ func deleteStoredMessagesAsReceivedDeletion(transaction: Transaction, mediaBox: 
     var regularIds: [MessageId] = []
     var channelIds: [MessageId] = []
     for id in ids {
+        // A message kept on purpose (`RemoteDeletionMessageAttribute`) outlives the server's copy, so a
+        // history that answers without it must not delete it here.
+        if let message = transaction.getMessage(id), message.attributes.contains(where: { $0 is RemoteDeletionMessageAttribute }) {
+            continue
+        }
         if id.peerId.namespace == Namespaces.Peer.CloudChannel {
             channelIds.append(id)
         } else {
