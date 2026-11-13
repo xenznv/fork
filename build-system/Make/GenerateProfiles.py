@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import sys
@@ -114,6 +115,13 @@ def process_provisioning_profile(source, destination, certificate_data, signing_
 
     # Insert the new certificate
     run_executable_with_output('plutil', arguments=['-insert', 'DeveloperCertificates.0', '-data', certificate_data, parsed_plist_file])
+
+    # The profiles are fixtures that live in the repository, so their dates go stale: the build refuses an
+    # expired one (`ExpirationDate ... is in the past`). Stamp them afresh for the regenerated copy.
+    now = datetime.datetime.now(datetime.timezone.utc)
+    date_format = '%Y-%m-%dT%H:%M:%SZ'
+    run_executable_with_output('plutil', arguments=['-replace', 'CreationDate', '-date', now.strftime(date_format), parsed_plist_file])
+    run_executable_with_output('plutil', arguments=['-replace', 'ExpirationDate', '-date', (now + datetime.timedelta(days=365)).strftime(date_format), parsed_plist_file])
 
     # Remove the DER-Encoded-Profile (signature)
     run_executable_with_output('plutil', arguments=['-remove', 'DER-Encoded-Profile', parsed_plist_file])
