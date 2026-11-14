@@ -145,8 +145,9 @@ def generate_provisioning_profiles(source_path, destination_path, certs_path):
         print('{} does not exist'.format(destination_path))
         sys.exit(1)
 
-    # Extract certificate info from p12
-    p12_password = ''  # fake-codesigning uses empty password
+    # Extract certificate info from p12. A p12 sealed with an empty password does not import on recent
+    # macOS (`security import` leaves the keychain empty), so a caller may supply its own password.
+    p12_password = os.environ.get('TELEGRAM_SIGNING_P12_PASSWORD', '')
     certificate_data = get_certificate_base64_from_p12(p12_path, p12_password)
     signing_identity = get_signing_identity_from_p12(p12_path, p12_password)
 
