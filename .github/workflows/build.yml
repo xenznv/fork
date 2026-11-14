@@ -84,30 +84,38 @@ jobs:
           echo "BUILD_NUMBER=$(echo $BUILD_NUMBER)" >> $GITHUB_ENV
           echo "APP_VERSION=$(echo $APP_VERSION)" >> $GITHUB_ENV
 
-          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
-          echo '--- codesigning identities ---'
-          security default-keychain -d user -s temp.keychain 2>/dev/null || true
-          sudo security add-trusted-cert -d -r trustRoot -k temp.keychain build-system/fake-codesigning/certs/Public.cer 2>/dev/null || true
-          security find-identity -p codesigning | head -5 || true
+          # A signing identity generated on this runner: the bundled fake certificate does not import into
+          # the runner keychain, and the bundled profiles have expired.
+          SIGNING="ci-signing"
+          rm -rf "$SIGNING"
+          mkdir -p "$SIGNING/certs" "$SIGNING/profiles"
+          openssl req -x509 -newkey rsa:2048 -keyout "$SIGNING/key.pem" -out "$SIGNING/certs/cert.pem" \
+            -days 400 -nodes \
+            -subj "/CN=Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)/OU=SELFSIGNED/C=US"
+          openssl pkcs12 -export -out "$SIGNING/certs/SelfSigned.p12" \
+            -inkey "$SIGNING/key.pem" -in "$SIGNING/certs/cert.pem" -passout pass:
+          cp build-system/fake-codesigning/profiles/*.mobileprovision "$SIGNING/profiles/"
 
-          # The bundled fake profiles expire: regenerate them with fresh dates before the build reads them.
+          python3 build-system/Make/ImportCertificates.py --path "$SIGNING/certs"
           python3 -u build-system/Make/Make.py \
             generate-verification-profiles \
             --configurationPath="build-system/appstore-configuration.json" \
-            --codesigningInformationPath=build-system/fake-codesigning \
-            --destination="build/generated-profiles" \
-            --certsPath=build-system/fake-codesigning/certs
-          cp build/generated-profiles/*.mobileprovision build-system/fake-codesigning/profiles/
+            --codesigningInformationPath="$SIGNING" \
+            --destination="$SIGNING/generated" \
+            --certsPath="$SIGNING/certs"
+          cp "$SIGNING"/generated/*.mobileprovision "$SIGNING/profiles/"
+
+          echo '--- codesigning identities ---'
+          security find-identity -p codesigning | head -5 || true
 
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$BAZEL_USER_ROOT" \
             ${{ steps.xcode.outputs.overrideXcodeVersion }} \
             build \
             --configurationPath="build-system/appstore-configuration.json" \
-            --codesigningInformationPath=build-system/fake-codesigning \
+            --codesigningInformationPath="$SIGNING" \
             --configuration=release_arm64 \
-            --buildNumber="$BUILD_NUMBER" \
-            --disableProvisioningProfiles
+            --buildNumber="$BUILD_NUMBER"
 
           # collect ipa
           OUTPUT_PATH="build/artifacts"
