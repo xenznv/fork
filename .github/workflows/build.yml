@@ -86,7 +86,9 @@ jobs:
 
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           echo '--- codesigning identities ---'
-          security find-identity -v -p codesigning || true
+          security default-keychain -d user -s temp.keychain 2>/dev/null || true
+          sudo security add-trusted-cert -d -r trustRoot -k temp.keychain build-system/fake-codesigning/certs/Public.cer 2>/dev/null || true
+          security find-identity -p codesigning | head -5 || true
 
           # The bundled fake profiles expire: regenerate them with fresh dates before the build reads them.
           python3 -u build-system/Make/Make.py \
