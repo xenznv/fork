@@ -1041,6 +1041,14 @@ if __name__ == '__main__':
     )
     add_project_and_build_common_arguments(buildParser)
     buildParser.add_argument(
+        '--disableProvisioningProfiles',
+        action='store_true',
+        default=None,
+        help='''
+            Build without provisioning profiles and without device signing: an unsigned IPA.
+            '''
+    )
+    buildParser.add_argument(
         '--configuration',
         choices=[
             'debug_arm64',
