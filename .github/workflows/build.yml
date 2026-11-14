@@ -89,10 +89,12 @@ jobs:
           SIGNING="ci-signing"
           rm -rf "$SIGNING"
           mkdir -p "$SIGNING/certs" "$SIGNING/profiles"
-          openssl req -x509 -newkey rsa:2048 -keyout "$SIGNING/key.pem" -out "$SIGNING/certs/cert.pem" \
+          # /usr/bin/openssl is LibreSSL: it seals the p12 with the legacy algorithms `security import` reads.
+          # Homebrew's OpenSSL 3 exports AES/SHA256, which `security` rejects ("MAC verification failed").
+          /usr/bin/openssl req -x509 -newkey rsa:2048 -keyout "$SIGNING/key.pem" -out "$SIGNING/certs/cert.pem" \
             -days 400 -nodes \
             -subj "/CN=Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)/OU=SELFSIGNED/C=US"
-          openssl pkcs12 -export -out "$SIGNING/certs/SelfSigned.p12" \
+          /usr/bin/openssl pkcs12 -export -out "$SIGNING/certs/SelfSigned.p12" \
             -inkey "$SIGNING/key.pem" -in "$SIGNING/certs/cert.pem" -passout pass:secret
           cp build-system/fake-codesigning/profiles/*.mobileprovision "$SIGNING/profiles/"
 
