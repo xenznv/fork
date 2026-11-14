@@ -89,13 +89,14 @@ jobs:
           SIGNING="ci-signing"
           rm -rf "$SIGNING"
           mkdir -p "$SIGNING/certs" "$SIGNING/profiles"
-          # /usr/bin/openssl is LibreSSL: it seals the p12 with the legacy algorithms `security import` reads.
-          # Homebrew's OpenSSL 3 exports AES/SHA256, which `security` rejects ("MAC verification failed").
-          /usr/bin/openssl req -x509 -newkey rsa:2048 -keyout "$SIGNING/key.pem" -out "$SIGNING/certs/cert.pem" \
-            -days 400 -nodes \
-            -subj "/CN=Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)/OU=SELFSIGNED/C=US"
-          /usr/bin/openssl pkcs12 -export -out "$SIGNING/certs/SelfSigned.p12" \
-            -inkey "$SIGNING/key.pem" -in "$SIGNING/certs/cert.pem" -passout pass:secret
+          # The bundled certificate already carries the code-signing EKU that makes it an identity at all;
+          # a freshly generated one has none. Re-wrap it with a password, which `security import` needs.
+          # Homebrew's OpenSSL 3 reads the legacy p12; /usr/bin/openssl (LibreSSL) seals one macOS accepts.
+          openssl pkcs12 -legacy -in build-system/fake-codesigning/certs/SelfSigned.p12 \
+            -passin pass: -nodes -out "$SIGNING/bundle.pem"
+          /usr/bin/openssl pkcs12 -export -in "$SIGNING/bundle.pem" \
+            -out "$SIGNING/certs/SelfSigned.p12" -passout pass:secret
+          rm -f "$SIGNING/bundle.pem"
           cp build-system/fake-codesigning/profiles/*.mobileprovision "$SIGNING/profiles/"
 
           # An explicit keychain: `security import` of an empty-password p12 leaves it empty on recent macOS.
